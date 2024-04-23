@@ -15,19 +15,15 @@ class ImageSegmentationApp:
             if self.original_image is None:
                 raise FileNotFoundError("No se encontró la imagen o no se pudo cargar.")
 
-            # Convertir la imagen a un tipo de datos compatible
+        # Convertir la imagen a un tipo de datos compatible
             self.original_image = cv2.convertScaleAbs(self.original_image)
 
             self.segmented_image = self.original_image.copy()
         except (IOError, cv2.error, FileNotFoundError) as e:
             print(f"Error al cargar la imagen: {e}")
-            # Usar una imagen predeterminada o continuar con valores predeterminados
+        # Usar una imagen predeterminada o continuar con valores predeterminados
             self.original_image = None
             self.segmented_image = None
-
-        # Variables para el movimiento de la imagen
-        self.img_x = 0
-        self.img_y = 0
 
         # Frame para la imagen
         self.image_frame = Frame(master)
