@@ -62,7 +62,6 @@ class ImageSegmentationApp:
         self.canvas.bind('<Button-1>', self.start_selection)
         self.canvas.bind('<B1-Motion>', self.update_selection)
         self.canvas.bind('<ButtonRelease-1>', self.end_selection)
-        self.canvas.bind("<Motion>", self.move_image)
 
         # Inicializar variables de selección
         self.selection_start = None
@@ -162,20 +161,6 @@ class ImageSegmentationApp:
 
         # Actualizar la imagen mostrada en la aplicación
         self.update_image()
-
-    def zoom_in(self):
-        self.zoom_factor *= 1.1
-        self.update_image()
-
-    def zoom_out(self):
-        self.zoom_factor /= 1.1
-        self.update_image()
-
-    def move_image(self, event):
-        if event.state == 256:
-            self.canvas.scan_dragto(event.x, event.y, gain=1)
-        else:
-            pass
 
     def apply_kmeans_segmentation(self):
         # No se aplicará K-Means en esta versión
