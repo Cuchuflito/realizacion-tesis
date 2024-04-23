@@ -110,6 +110,40 @@ class ImageSegmentationApp:
         # Recortar la región seleccionada de la imagen original
         selected_region = self.original_image[y0:y1, x0:x1]
 
+        # Normalizar la imagen
+        selected_region = selected_region.astype(np.float32) / 255.0
+
+        # Obtener el número de centroides desde el campo de entrada
+        k = int(self.k_entry.get())
+
+        # Aplicar K-Means clustering a la región seleccionada
+        kmeans = KMeans(n_clusters=k, init='k-means++')
+        pixels = selected_region.reshape((-1, 3))
+        kmeans.fit(pixels)
+        labels = kmeans.labels_
+        centers = kmeans.cluster_centers_
+
+        # Asignar colores a los clusters
+        segmented_region = centers[labels].reshape(selected_region.shape)
+
+        # Escalar nuevamente los valores a 0-255
+        segmented_region = (segmented_region * 255).astype(np.uint8)
+
+        # Reemplazar la región seleccionada con la región segmentada en la imagen original
+        self.segmented_image[y0:y1, x0:x1] = segmented_region
+
+        # Actualizar la imagen mostrada en la aplicación
+        self.update_image()
+
+        if self.selection_start is None or self.selection_end is None:
+            return
+
+        x0, y0 = self.selection_start
+        x1, y1 = self.selection_end
+
+        # Recortar la región seleccionada de la imagen original
+        selected_region = self.original_image[y0:y1, x0:x1]
+
         # Obtener el número de centroides desde el campo de entrada
         k = int(self.k_entry.get())
 
