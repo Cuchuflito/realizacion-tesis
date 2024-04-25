@@ -9,21 +9,14 @@ class ImageSegmentationApp:
         self.master = master
         master.title("Creación de Mapas de Uso de Suelo")
 
-        try:
-            # Cargar la imagen
-            self.original_image = cv2.imread('imagen_prueba/image.jpg')
-            if self.original_image is None:
-                raise FileNotFoundError("No se encontró la imagen o no se pudo cargar.")
+        # Cargar la imagen
+        self.original_image = cv2.imread('imagen_prueba/image.jpg')
+        if self.original_image is None:
+            raise FileNotFoundError("No se encontró la imagen o no se pudo cargar.")
 
         # Convertir la imagen a un tipo de datos compatible
-            self.original_image = cv2.convertScaleAbs(self.original_image)
-
-            self.segmented_image = self.original_image.copy()
-        except (IOError, cv2.error, FileNotFoundError) as e:
-            print(f"Error al cargar la imagen: {e}")
-        # Usar una imagen predeterminada o continuar con valores predeterminados
-            self.original_image = None
-            self.segmented_image = None
+        self.original_image = cv2.convertScaleAbs(self.original_image)
+        self.segmented_image = self.original_image.copy()
 
         # Frame para la imagen
         self.image_frame = Frame(master)
@@ -45,7 +38,7 @@ class ImageSegmentationApp:
         self.k_entry.insert(0, "4")  # Valor predeterminado para k
 
         # Botón para aplicar K-Means clustering
-        self.kmeans_button = Button(self.button_frame, text="K-Means Segmentation", command=self.apply_kmeans_segmentation)
+        self.kmeans_button = Button(self.button_frame, text="K-Means Segmentation")
         self.kmeans_button.pack(side=LEFT)
 
         # Botones para etiquetar áreas
@@ -129,47 +122,16 @@ class ImageSegmentationApp:
 
         # Actualizar la imagen mostrada en la aplicación
         self.update_image()
-
-        if self.selection_start is None or self.selection_end is None:
-            return
-
-        x0, y0 = self.selection_start
-        x1, y1 = self.selection_end
-
-        # Recortar la región seleccionada de la imagen original
-        selected_region = self.original_image[y0:y1, x0:x1]
-
-        # Obtener el número de centroides desde el campo de entrada
-        k = int(self.k_entry.get())
-
-        # Aplicar K-Means clustering a la región seleccionada
-        kmeans = KMeans(n_clusters=k)
-        pixels = selected_region.reshape((-1, 3))
-        kmeans.fit(pixels)
-        labels = kmeans.labels_
-        centers = kmeans.cluster_centers_
-
-        # Asignar colores a los clusters
-        segmented_region = centers[labels].reshape(selected_region.shape)
-
-        # Reemplazar la región seleccionada con la región segmentada en la imagen original
-        self.segmented_image[y0:y1, x0:x1] = segmented_region
-
-        # Actualizar la imagen mostrada en la aplicación
-        self.update_image()
-
-    def apply_kmeans_segmentation(self):
-        # No se aplicará K-Means en esta versión
-        pass
-
+        
     def update_image(self):
         self.segmented_image = cv2.convertScaleAbs(self.segmented_image)
         img = cv2.cvtColor(self.segmented_image, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(img)
         img = img.resize((int(img.width * self.zoom_factor), int(img.height * self.zoom_factor)), 3)
         img = ImageTk.PhotoImage(img)
-        self.canvas.delete("img")
-        self.canvas.create_image(self.img_x, self.img_y, image=img, anchor=NW, tags="img")
+        if hasattr(self, 'canvas_image'):
+            self.canvas.delete(self.canvas_image)
+        self.canvas_image = self.canvas.create_image(0, 0, image=img, anchor=NW)
         self.canvas.image = img
 
 root = Tk()
