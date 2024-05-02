@@ -1,29 +1,28 @@
+import tkinter as tk
+from tkinter import Frame, Canvas, Radiobutton, StringVar, NW
+from tkinter.ttk import Button, Label
+from PIL import Image, ImageTk
 import cv2
 import numpy as np
-from tkinter import *
-from PIL import Image, ImageTk
+
 
 class ImageSegmentationApp:
     def __init__(self, master):
         self.master = master
         master.title("Imagen Dividida en Segmentos")
 
-        # Cargar la imagen y verificar que la ruta sea correcta.
         self.original_image = cv2.imread('imagen_prueba/image.jpg')
         if self.original_image is None:
             raise FileNotFoundError("No se encontró la imagen o no se pudo cargar.")
-        # Convertir la imagen de BGR a RGB para su correcta visualización en Tkinter.
         self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
 
-        # Crear y empaquetar el frame de opciones de color.
         self.color_options = Frame(master)
         self.color_options.pack(side="top")
-        self.color_var = StringVar(value="green")  # Color por defecto
+        self.color_var = StringVar(value="green")
         colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green"}
         for text, value in colors.items():
             Radiobutton(self.color_options, text=text, variable=self.color_var, value=value).pack(side="left")
 
-        # Crear y empaquetar el frame de la imagen.
         self.image_frame = Frame(master)
         self.image_frame.pack(side="bottom")
 
@@ -35,7 +34,8 @@ class ImageSegmentationApp:
 
     def show_segmented_image(self):
         height, width, _ = self.original_image.shape
-        num_rows, num_cols = 8, 8
+        num_rows, num_cols = 32, 32  # Modifica estas variables para cambiar el número de segmentos
+
         segment_height = height // num_rows
         segment_width = width // num_cols
 
@@ -43,7 +43,6 @@ class ImageSegmentationApp:
         self.photos = []
         self.coords = []
 
-        # Crear los segmentos de imagen y empaquetarlos en el canvas.
         for i in range(num_rows):
             for j in range(num_cols):
                 x0 = j * segment_width
@@ -59,6 +58,12 @@ class ImageSegmentationApp:
                 self.coords.append((x0, y0, x1, y1))
                 self.canvas.create_image(x0, y0, image=photo, anchor=NW)
 
+        # Dibujar líneas verdes para separar los segmentos
+        for i in range(1, num_rows):
+            self.canvas.create_line(0, i * segment_height, width, i * segment_height, fill="green")
+        for j in range(1, num_cols):
+            self.canvas.create_line(j * segment_width, 0, j * segment_width, height, fill="green")
+
     def handle_click(self, event):
         print("Clicked at:", event.x, event.y)
         color_map = {
@@ -67,7 +72,6 @@ class ImageSegmentationApp:
             "green": (0, 255, 0)
         }
         chosen_color = color_map[self.color_var.get()]
-        # Aplicar relleno al segmento seleccionado.
         for idx, (x0, y0, x1, y1) in enumerate(self.coords):
             if x0 <= event.x < x1 and y0 <= event.y < y1:
                 seed_point = (event.x - x0, event.y - y0)
@@ -81,6 +85,6 @@ class ImageSegmentationApp:
                 self.canvas.create_image(x0, y0, image=photo, anchor=NW)
                 break
 
-root = Tk()
+root = tk.Tk()
 app = ImageSegmentationApp(root)
 root.mainloop()
