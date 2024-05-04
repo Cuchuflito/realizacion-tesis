@@ -21,7 +21,7 @@ class ImageSegmentationApp:
         self.color_options = Frame(master)
         self.color_options.pack(side="top")
         self.color_var = StringVar(value="red")
-        colors = {"Azul (Water)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green"}
+        colors = {"Azul (Water)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items():
             Radiobutton(self.color_options, text=text, variable=self.color_var, value=value).pack(side="left")
 
@@ -75,7 +75,7 @@ class ImageSegmentationApp:
         self.paint(event.x, event.y)
 
     def paint(self, x, y):
-        color_map = {"red": (255, 0, 0), "blue": (0, 0, 255), "green": (0, 255, 0)}
+        color_map = {"red": (255, 0, 0), "blue": (0, 0, 255), "green": (0, 255, 0), "yellow": (255, 255, 0)}
         chosen_color = color_map[self.color_var.get()]
         for idx, (x0, y0, x1, y1) in enumerate(self.coords):
             if x0 <= x < x1 and y0 <= y < y1:
