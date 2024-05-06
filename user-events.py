@@ -12,16 +12,16 @@ class ImageSegmentationApp:
 
         self.original_image = cv2.imread('imagen_prueba/image.jpg')
         if self.original_image is None:
-            raise FileNotFoundError("Image not found or unable to load.")
+            raise FileNotFoundError("Imagen no encontrada.")
         self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-        self.current_image = self.original_image.copy()  # Use this to keep track of changes at original scale
+        self.current_image = self.original_image.copy()  # almacenar cambios de imagen original
         self.zoom_level = 1
         self.displayed_image = self.original_image.copy()
 
         self.color_options = Frame(master)
         self.color_options.pack(side="top")
         self.color_var = StringVar(value="red")
-        colors = {"Azul (Water)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
+        colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items():
             Radiobutton(self.color_options, text=text, variable=self.color_var, value=value).pack(side="left")
 
@@ -68,17 +68,16 @@ class ImageSegmentationApp:
                 self.coords.append((x0, y0, x1, y1))
                 self.canvas.create_image(x0, y0, image=photo, anchor=NW)
 
-        # Dibujar líneas verdes separando los segmentos
+    
         for i in range(1, num_rows):
             self.canvas.create_line(0, i * segment_height, self.displayed_image.shape[1], i * segment_height, fill="green")
         for j in range(1, num_cols):
-            self.canvas.create_line(j * segment_width, 0, j * segment_width, self.displayed_image.shape[0], fill="green")
+            self.canvas.create_line(j * segment_width, 0, j * segment_width, self.displayed_image.shape[0], fill="green")  #lineas separadoras de segmentos
 
     def handle_click(self, event):
         self.paint(event.x, event.y)
 
     def update_display_image(self):
-        #Actualiza imagen mostrada en el canvas
         new_width = int(self.current_image.shape[1] * self.zoom_level)
         new_height = int(self.current_image.shape[0] * self.zoom_level)
         self.displayed_image = cv2.resize(self.current_image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
@@ -89,15 +88,19 @@ class ImageSegmentationApp:
         chosen_color = color_map[self.color_var.get()]
         for idx, (x0, y0, x1, y1) in enumerate(self.coords):
             if x0 <= x < x1 and y0 <= y < y1:
-                # Calcular las coordenadas ajustadas al zoom para el flood fill
                 zoomed_x0 = x0 * self.zoom_level
                 zoomed_y0 = y0 * self.zoom_level
                 zoomed_x1 = x1 * self.zoom_level
                 zoomed_y1 = y1 * self.zoom_level
                 seed_x = int((x - x0) * self.zoom_level)
                 seed_y = int((y - y0) * self.zoom_level)
-                seed_point = (seed_x, seed_y)
-                mask = np.zeros((zoomed_y1 - zoomed_y0 + 2, zoomed_x1 - zoomed_x0 + 2), dtype=np.uint8)
+                seed_point = (seed_x, seed_y) #coordenadas nuevas
+
+                # crear la mascara para el zoom
+                mask_height = zoomed_y1 - zoomed_y0 + 2
+                mask_width = zoomed_x1 - zoomed_x0 + 2  # PROPIEDAD IMPORTANTE FLOODFILL
+                mask = np.zeros((mask_height, mask_width), dtype=np.uint8)  # Creacion de la mascara para floodfill
+
                 segment = self.current_image[zoomed_y0:zoomed_y1, zoomed_x0:zoomed_x1]
                 cv2.floodFill(segment, mask, seed_point, chosen_color, (10,) * 3, (10,) * 3, cv2.FLOODFILL_FIXED_RANGE)
                 self.current_image[zoomed_y0:zoomed_y1, zoomed_x0:zoomed_x1] = segment
@@ -105,9 +108,10 @@ class ImageSegmentationApp:
                 break
 
 
+
+
     def undo(self):
-        # Undo functionality not implemented
-        print("Undo functionality not implemented yet")
+        print("Acá irá el control z")
 
     def zoom_in(self):
         if self.zoom_level < 4:
