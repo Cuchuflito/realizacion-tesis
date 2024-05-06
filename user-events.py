@@ -47,7 +47,7 @@ class ImageSegmentationApp:
         self.display_segments()
 
     def display_segments(self):
-        num_rows, num_cols = 8, 8
+        num_rows, num_cols = 64, 64
         segment_height = self.displayed_image.shape[0] // num_rows
         segment_width = self.displayed_image.shape[1] // num_cols
         self.segments = []
