@@ -209,7 +209,6 @@ class ImageSegmentationApp:
                 self.canvas.delete(self.current_polygon)
                 self.current_polygon = None
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = ImageSegmentationApp(root)
-    root.mainloop()
+root = tk.Tk()
+app = ImageSegmentationApp(root)
+root.mainloop()
