@@ -21,7 +21,7 @@ class ImageSegmentationApp:
         self.init_variables()
         self.setup_ui()
 
-    def init_variables(self):
+    def init_variables(self): #se inicializan las variables que se utilizarán (las pilas de historial y polígonos, la escala, el offset, el modo y el color)
         self.historia = []
         self.labels = []
         self.polygon_points = []
@@ -35,7 +35,7 @@ class ImageSegmentationApp:
         self.load_image('imagen_prueba/image.jpg')
         self.font = ImageFont.load_default()
 
-    def load_image(self, image_path):
+    def load_image(self, image_path): #se carga la imagen inicial
         self.original_image = cv2.imread(image_path)
         if self.original_image is None:
             raise FileNotFoundError("Imagen no encontrada.")
@@ -46,7 +46,7 @@ class ImageSegmentationApp:
         self.displayed_image = self.painted_image.copy()
         
 
-    def save_state(self, file_path):
+    def save_state(self, file_path): #se guarda el estado de la imagen
         state = {
             'original_image': self.original_image,
             'segmented_image': self.segmented_image,
@@ -65,7 +65,7 @@ class ImageSegmentationApp:
         with open(file_path, 'wb') as file:
             pickle.dump(state, file)
             
-    def load_state(self, file_path):
+    def load_state(self, file_path):  #se carga el estado de la imagen
         try:
             with open(file_path, 'rb') as file:
                 state = pickle.load(file)
@@ -86,13 +86,13 @@ class ImageSegmentationApp:
         except FileNotFoundError:
             print("No se encontró el archivo de estado.")
 
-    def open_state(self):
-        file_path = filedialog.askopenfilename(defaultextension=".state", filetypes=[("State Files", "*.state")])
+    def open_state(self): #se abre el estado de la imagen cargada en load_state
+        file_path = filedialog.askopenfilename(defaultextension=".jpg", filetypes=[("IMAGEN JPG", "*.jpg")])
         if file_path:
             self.load_state(file_path)
 
     def save_state_as(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".state", filetypes=[("State Files", "*.state")])
+        file_path = filedialog.asksaveasfilename(defaultextension=".jpg", filetypes=[("IMAGEN JPG", "*.jpg")])
         if file_path:
             self.save_state(file_path)
 
