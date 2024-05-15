@@ -61,6 +61,8 @@ class ImageSegmentationApp:
 
         self.color_options = Frame(self.master, width=200)
         self.color_options.pack(side="right", fill="y")
+        self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)
+        self.undo_button.pack(side="bottom", fill="y")
         self.color_var = StringVar(value="red")
         colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items():
@@ -82,8 +84,7 @@ class ImageSegmentationApp:
         self.canvas.bind("<B1-Motion>", self.drag)
         self.canvas.bind("<ButtonRelease-1>", self.reset_drag)
 
-        self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)
-        self.undo_button.pack(side="bottom")
+        
         self.show_segmented_image()
         
         
