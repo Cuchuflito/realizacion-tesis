@@ -15,6 +15,11 @@ class ImageSegmentationApp:
         master.geometry("1280x720")
         master.resizable(False, False)
 
+        self.historia = [] # Lista de imágenes para deshacer
+        
+        self.undo_button = Button(master, text="Deshacer", command=self.undo_last_action)
+        self.undo_button.pack(side="bottom") # Botón para deshacer la última acción
+
         # Cargar la imagen original
         self.original_image = cv2.imread('imagen_prueba/image.jpg')
         if self.original_image is None:
@@ -81,7 +86,33 @@ class ImageSegmentationApp:
 
         self.show_segmented_image()
 
+    def save_to_historia(self):
+        # Guardar una copia del estado actual de la imagen, polígonos y rótulos
+        current_state = {
+            'displayed_image': self.displayed_image.copy(),
+            'labels': self.labels[:],  # Hacer una copia de la lista de rótulos
+            'polygon_points': self.polygon_points[:]
+        }
+        self.historia.append(current_state)
+
+        
+    def undo_last_action(self):
+        if self.historia:
+            state = self.historia.pop()
+            self.displayed_image = state['displayed_image']
+            self.labels = state['labels']
+            self.polygon_points = state['polygon_points']
+            if self.is_drawing_polygon:
+                if self.current_polygon:
+                    self.canvas.delete(self.current_polygon)
+                self.current_polygon = None
+                self.is_drawing_polygon = False
+            self.show_segmented_image()
+        else:
+            print("No hay más acciones para deshacer.")
+
     def apply_kmeans(self):
+        self.save_to_historia()
         k = int(self.k_entry.get())
         kmeans = KMeans(n_clusters=k, random_state=0)
         data = self.original_image.reshape((-1, 3)).astype(np.float32)
@@ -93,7 +124,7 @@ class ImageSegmentationApp:
         self.show_segmented_image()
 
     def polygon_centroid(self, points):
-        """Calcula el centroide (centro geométrico) de un polígono dado sus vértices."""
+       #Calcula el centroide (centro geométrico) de un polígono dado sus vértices.
         x_list = [vertex[0] for vertex in points]
         y_list = [vertex[1] for vertex in points]
         n_points = len(points)
@@ -102,7 +133,7 @@ class ImageSegmentationApp:
         return (x, y)
 
     def safe_polygon_centroid(self, points):
-        """Encuentra un punto seguro dentro del polígono usando shapely."""
+        #Encuentra un punto seguro dentro del polígono usando shapely.
         poly = Polygon(points)
         point = poly.representative_point()  # Devuelve un punto garantizado dentro del polígono
         return point.x, point.y
@@ -131,10 +162,6 @@ class ImageSegmentationApp:
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
 
-
-
-
-
     def handle_click(self, event):
         mode = self.mode_var.get()
         if mode == "lazo":
@@ -159,6 +186,7 @@ class ImageSegmentationApp:
 
     def paint_segment(self, x, y, color):
         tolerance = 20
+        self.save_to_historia()
         mask = np.zeros((self.painted_image.shape[0] + 2, self.painted_image.shape[1] + 2), np.uint8)
         cv2.floodFill(self.painted_image, mask, (x, y), color, (tolerance,) * 3, (tolerance,) * 3, flags=cv2.FLOODFILL_FIXED_RANGE)
         self.displayed_image = self.painted_image.copy()
@@ -195,8 +223,9 @@ class ImageSegmentationApp:
         if self.is_drawing_polygon and self.polygon_points:
             label = simpledialog.askstring("Rotular Polígono", "Ingrese el rótulo del área:")
             if label:
+                self.save_to_historia()  # Guardar estado antes de finalizar el polígono
                 centroid_x, centroid_y = self.safe_polygon_centroid(self.polygon_points)
-                    
+                
                 scaled_centroid_x = (centroid_x - self.offset_x) / self.scale
                 scaled_centroid_y = (centroid_y - self.offset_y) / self.scale
 
