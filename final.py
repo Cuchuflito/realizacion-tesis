@@ -31,10 +31,14 @@ class ImageSegmentationApp:
         self.displayed_image = self.painted_image.copy()
 
         self.scale = 1.0
-        self.offset_x = 0
-        self.offset_y = 0
         self.canvas_width = 1240  # Ajustado para un tamaño fijo de ventana
         self.canvas_height = 640
+        
+        # Calcular el desplazamiento inicial para centrar la imagen
+        initial_image_width = self.displayed_image.shape[1] * self.scale
+        initial_image_height = self.displayed_image.shape[0] * self.scale
+        self.offset_x = (self.canvas_width - initial_image_width) / 2
+        self.offset_y = (self.canvas_height - initial_image_height) / 2
 
         # Crear opciones de color
         self.color_options = Frame(master)
