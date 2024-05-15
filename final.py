@@ -1,10 +1,11 @@
 import tkinter as tk
-from tkinter import Frame, Canvas, Entry, Button, StringVar, Radiobutton, simpledialog, NW
+from tkinter import Frame, Canvas, Entry, Button, StringVar, Radiobutton, simpledialog, NW, Label, filedialog
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 from shapely.geometry import Polygon
+import pickle
 
 class ImageSegmentationApp:
     def __init__(self, master):
@@ -43,10 +44,69 @@ class ImageSegmentationApp:
         self.current_image = self.segmented_image.copy()
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
+        
+
+    def save_state(self, file_path):
+        state = {
+            'original_image': self.original_image,
+            'segmented_image': self.segmented_image,
+            'current_image': self.current_image,
+            'painted_image': self.painted_image,
+            'displayed_image': self.displayed_image,
+            'labels': self.labels,
+            'polygon_points': self.polygon_points,
+            'is_drawing_polygon': self.is_drawing_polygon,
+            'scale': self.scale,
+            'offset_x': self.offset_x,
+            'offset_y': self.offset_y,
+            'mode_var': self.mode_var.get(),
+            'color_var': self.color_var.get(),
+        }
+        with open(file_path, 'wb') as file:
+            pickle.dump(state, file)
+            
+    def load_state(self, file_path):
+        try:
+            with open(file_path, 'rb') as file:
+                state = pickle.load(file)
+                self.original_image = state['original_image']
+                self.segmented_image = state['segmented_image']
+                self.current_image = state['current_image']
+                self.painted_image = state['painted_image']
+                self.displayed_image = state['displayed_image']
+                self.labels = state['labels']
+                self.polygon_points = state['polygon_points']
+                self.is_drawing_polygon = state['is_drawing_polygon']
+                self.scale = state['scale']
+                self.offset_x = state['offset_x']
+                self.offset_y = state['offset_y']
+                self.mode_var.set(state['mode_var'])
+                self.color_var.set(state['color_var'])
+                self.show_segmented_image()
+        except FileNotFoundError:
+            print("No se encontró el archivo de estado.")
+
+    def open_state(self):
+        file_path = filedialog.askopenfilename(defaultextension=".state", filetypes=[("State Files", "*.state")])
+        if file_path:
+            self.load_state(file_path)
+
+    def save_state_as(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".state", filetypes=[("State Files", "*.state")])
+        if file_path:
+            self.save_state(file_path)
 
     def setup_ui(self):
         self.top_frame = Frame(self.master)
-        self.top_frame.pack(side="top", fill="x")
+        self.top_frame.pack(side="top", fill="x", expand=True)
+        
+        #guardar y cargar    
+        self.menu_bar = tk.Menu(self.master)
+        self.master.config(menu=self.menu_bar)
+        file_menu = tk.Menu(self.menu_bar)
+        self.menu_bar.add_cascade(label="Archivo", menu=file_menu)
+        file_menu.add_command(label="Abrir", command=self.open_state)
+        file_menu.add_command(label="Guardar como", command=self.save_state_as)
 
         self.k_entry = Entry(self.top_frame, width=5)
         self.k_entry.pack(side="left")
@@ -63,11 +123,12 @@ class ImageSegmentationApp:
         self.color_options.pack(side="right", fill="y")
         self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)
         self.undo_button.pack(side="bottom", fill="y")
-        self.color_var = StringVar(value="red")
         colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items():
-            Radiobutton(self.color_options, text=text, variable=self.color_var, value=value).pack()
-
+            frame = Frame(self.color_options)
+            frame.pack(fill="x")
+            Label(frame, width=2, bg=value).pack(side="left")
+            Radiobutton(frame, text=text, variable=self.color_var, value=value).pack(side="left")
         self.mode_frame = Frame(self.top_frame)
         self.mode_frame.pack(side="left")
         Radiobutton(self.mode_frame, text="Arrastrar", variable=self.mode_var, value="drag").pack(side="left")
@@ -222,6 +283,9 @@ class ImageSegmentationApp:
             if self.current_polygon:
                 self.canvas.delete(self.current_polygon)
                 self.current_polygon = None
+    
+    
+    
 
 root = tk.Tk()
 app = ImageSegmentationApp(root)
