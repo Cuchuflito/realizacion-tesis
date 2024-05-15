@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Frame, Canvas, Entry, Button, StringVar, Radiobutton, NW, simpledialog
+from tkinter import Frame, Canvas, Entry, Button, StringVar, Radiobutton, simpledialog, NW
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import cv2
 import numpy as np
@@ -10,96 +10,91 @@ class ImageSegmentationApp:
     def __init__(self, master):
         self.master = master
         master.title("Aplicación de Segmentación y Pintura de Imagen")
-
-        # Establecer el tamaño fijo de la ventana
         master.geometry("1280x720")
         master.resizable(False, False)
 
-        self.historia = [] # Lista de imágenes para deshacer
-        
-        self.undo_button = Button(master, text="Deshacer", command=self.undo_last_action)
-        self.undo_button.pack(side="bottom") # Botón para deshacer la última acción
+        self.canvas_width = 1040
+        self.canvas_height = 720
+        self.scale = 1.0
 
-        # Cargar la imagen original
-        self.original_image = cv2.imread('imagen_prueba/image.jpg')
+        self.init_variables()
+        self.setup_ui()
+
+    def init_variables(self):
+        self.historia = []
+        self.labels = []
+        self.polygon_points = []
+        self.is_drawing_polygon = False
+        self.current_polygon = None
+        self.scale = 1.0
+        self.offset_x = 0
+        self.offset_y = 0
+        self.mode_var = StringVar(value="paint")
+        self.color_var = StringVar(value="red")
+        self.load_image('imagen_prueba/image.jpg')
+        self.font = ImageFont.load_default()
+
+    def load_image(self, image_path):
+        self.original_image = cv2.imread(image_path)
         if self.original_image is None:
             raise FileNotFoundError("Imagen no encontrada.")
         self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
         self.segmented_image = self.original_image.copy()
-        self.current_image = self.original_image.copy()
+        self.current_image = self.segmented_image.copy()
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
 
-        self.scale = 1.0
-        self.canvas_width = 1240  # Ajustado para un tamaño fijo de ventana
-        self.canvas_height = 640
-        
-        # Calcular el desplazamiento inicial para centrar la imagen
-        initial_image_width = self.displayed_image.shape[1] * self.scale
-        initial_image_height = self.displayed_image.shape[0] * self.scale
-        self.offset_x = (self.canvas_width - initial_image_width) / 2
-        self.offset_y = (self.canvas_height - initial_image_height) / 2
+    def setup_ui(self):
+        self.top_frame = Frame(self.master)
+        self.top_frame.pack(side="top", fill="x")
 
-        # Crear opciones de color
-        self.color_options = Frame(master)
-        self.color_options.pack(side="top")
+        self.k_entry = Entry(self.top_frame, width=5)
+        self.k_entry.pack(side="left")
+        self.k_entry.insert(0, "4")
+        self.kmeans_button = Button(self.top_frame, text="Segmentar", command=self.apply_kmeans)
+        self.kmeans_button.pack(side="left")
+
+        self.zoom_in_button = Button(self.top_frame, text="Zoom In", command=self.zoom_in)
+        self.zoom_in_button.pack(side="left")
+        self.zoom_out_button = Button(self.top_frame, text="Zoom Out", command=self.zoom_out)
+        self.zoom_out_button.pack(side="left")
+
+        self.color_options = Frame(self.master, width=200)
+        self.color_options.pack(side="right", fill="y")
         self.color_var = StringVar(value="red")
         colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items():
-            Radiobutton(self.color_options, text=text, variable=self.color_var, value=value).pack(side="left")
+            Radiobutton(self.color_options, text=text, variable=self.color_var, value=value).pack()
 
-        # Crear campo de entrada para número de clústeres y botón de segmentación
-        self.k_entry = Entry(self.color_options, width=5)
-        self.k_entry.pack(side="left")
-        self.k_entry.insert(0, "4")
-        self.kmeans_button = Button(self.color_options, text="Segmentar", command=self.apply_kmeans)
-        self.kmeans_button.pack(side="left")
-
-        # Crear botones de zoom
-        self.zoom_in_button = Button(self.color_options, text="Zoom In", command=self.zoom_in)
-        self.zoom_in_button.pack(side="left")
-        self.zoom_out_button = Button(self.color_options, text="Zoom Out", command=self.zoom_out)
-        self.zoom_out_button.pack(side="left")
-
-        # Crear modos de interacción
-        self.mode_var = StringVar(value="paint")
-        self.drag_radio = Radiobutton(self.color_options, text="Arrastrar", variable=self.mode_var, value="drag")
-        self.drag_radio.pack(side="left")
-        self.paint_radio = Radiobutton(self.color_options, text="Pintar", variable=self.mode_var, value="paint")
-        self.paint_radio.pack(side="left")
-        self.lazo_radio = Radiobutton(self.color_options, text="Lazo", variable=self.mode_var, value="lazo")
-        self.lazo_radio.pack(side="left")
-        self.finish_polygon_button = Button(self.color_options, text="Finalizar Polígono", command=self.finish_polygon)
+        self.mode_frame = Frame(self.top_frame)
+        self.mode_frame.pack(side="left")
+        Radiobutton(self.mode_frame, text="Arrastrar", variable=self.mode_var, value="drag").pack(side="left")
+        Radiobutton(self.mode_frame, text="Pintar", variable=self.mode_var, value="paint").pack(side="left")
+        Radiobutton(self.mode_frame, text="Lazo", variable=self.mode_var, value="lazo").pack(side="left")
+        self.finish_polygon_button = Button(self.top_frame, text="Finalizar Polígono", command=self.finish_polygon)
         self.finish_polygon_button.pack(side="left")
 
-        # Crear el área de imagen en el canvas
-        self.image_frame = Frame(master)
-        self.image_frame.pack(side="bottom")
-        self.canvas = Canvas(self.image_frame, width=self.canvas_width, height=self.canvas_height, cursor="cross")
-        self.canvas.pack()
+        self.image_frame = Frame(self.master)
+        self.image_frame.pack(side="left", fill="both", expand=True)
+        self.canvas = Canvas(self.image_frame, width=1040, height=720, cursor="cross")
+        self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Button-1>", self.handle_click)
         self.canvas.bind("<B1-Motion>", self.drag)
         self.canvas.bind("<ButtonRelease-1>", self.reset_drag)
 
-        # Inicializar otras variables
-        self.polygon_points = []
-        self.is_drawing_polygon = False
-        self.current_polygon = None
-        self.labels = []
-        self.font = ImageFont.load_default()
-
+        self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)
+        self.undo_button.pack(side="bottom")
         self.show_segmented_image()
-
+        
+        
     def save_to_historia(self):
-        # Guardar una copia del estado actual de la imagen, polígonos y rótulos
         current_state = {
             'displayed_image': self.displayed_image.copy(),
-            'labels': self.labels[:],  # Hacer una copia de la lista de rótulos
+            'labels': self.labels[:],
             'polygon_points': self.polygon_points[:]
         }
         self.historia.append(current_state)
 
-        
     def undo_last_action(self):
         if self.historia:
             state = self.historia.pop()
@@ -127,44 +122,33 @@ class ImageSegmentationApp:
         self.displayed_image = self.painted_image.copy()
         self.show_segmented_image()
 
-    def polygon_centroid(self, points):
-       #Calcula el centroide (centro geométrico) de un polígono dado sus vértices.
-        x_list = [vertex[0] for vertex in points]
-        y_list = [vertex[1] for vertex in points]
-        n_points = len(points)
-        x = sum(x_list) / n_points
-        y = sum(y_list) / n_points
-        return (x, y)
-
-    def safe_polygon_centroid(self, points):
-        #Encuentra un punto seguro dentro del polígono usando shapely.
-        poly = Polygon(points)
-        point = poly.representative_point()  # Devuelve un punto garantizado dentro del polígono
-        return point.x, point.y
-
     def show_segmented_image(self):
-        # Redimensionar la imagen con el factor de escala actual
         resized_image = cv2.resize(self.displayed_image, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_LINEAR)
         img = Image.fromarray(resized_image)
         draw = ImageDraw.Draw(img)
         draw.font = self.font
 
         for label, (center_x, center_y) in self.labels:
-            # Escalar las coordenadas del centroide únicamente por el factor de zoom
             screen_x = int(center_x * self.scale)
             screen_y = int(center_y * self.scale)
 
-            # Dibujar los rótulos directamente sobre la imagen escalada, sin considerar desplazamiento
             box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
             box_x = screen_x - box_width // 2
             box_y = screen_y - box_height // 2
             draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
             draw.text((box_x, box_y), label, fill='white', font=self.font)
 
-        # Ajustar el tamaño del canvas y colocar la imagen en el canvas con el desplazamiento actual
         self.photo_image = ImageTk.PhotoImage(image=img)
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
+        
+        
+    def safe_polygon_centroid(self, points):
+        #Encuentra un punto seguro dentro del polígono usando shapely.
+        poly = Polygon(points)
+        point = poly.representative_point()  # Devuelve un punto garantizado dentro del polígono
+        return point.x, point.y
+
 
     def handle_click(self, event):
         mode = self.mode_var.get()
@@ -208,7 +192,6 @@ class ImageSegmentationApp:
             self.drag_start_y = event.y
             self.show_segmented_image()
 
-
     def reset_drag(self, event):
         self.drag_start_x = None
         self.drag_start_y = None
@@ -219,23 +202,20 @@ class ImageSegmentationApp:
             self.show_segmented_image()
 
     def zoom_out(self):
-            if self.scale > 0.5:
-                self.scale *= 0.9
-                self.show_segmented_image()
+        if self.scale > 0.5:
+            self.scale *= 0.9
+            self.show_segmented_image()
 
     def finish_polygon(self):
         if self.is_drawing_polygon and self.polygon_points:
-            label = simpledialog.askstring("Rotular Polígono", "Ingrese el rótulo del área:")
+            label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
             if label:
-                self.save_to_historia()  # Guardar estado antes de finalizar el polígono
+                self.save_to_historia()
                 centroid_x, centroid_y = self.safe_polygon_centroid(self.polygon_points)
-                
-                scaled_centroid_x = (centroid_x - self.offset_x) / self.scale
-                scaled_centroid_y = (centroid_y - self.offset_y) / self.scale
-
+                scaled_centroid_x = int((centroid_x - self.offset_x) / self.scale)
+                scaled_centroid_y = int((centroid_y - self.offset_y) / self.scale)
                 self.labels.append((label, (scaled_centroid_x, scaled_centroid_y)))
                 self.show_segmented_image()
-
                 self.is_drawing_polygon = False
                 self.polygon_points = []
             if self.current_polygon:
