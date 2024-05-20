@@ -44,8 +44,16 @@ class ImageSegmentationApp:
         self.current_image = self.segmented_image.copy()
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
-        
-
+              
+    def save_png(self, file_path): #se guarda la imagen segmentada
+        if len(self.displayed_image.shape) == 2 or self.displayed_image.shape[2] == 1:
+            img = cv2.cvtColor(self.displayed_image, cv2.COLOR_GRAY2RGB)
+        else:
+            img =self.displayed_image
+        imagen = Image.fromarray(img)
+        imagen.save(file_path, "PNG")
+            
+            
     def save_state(self, file_path): #se guarda el estado de la imagen
         state = {
             'original_image': self.original_image,
@@ -95,6 +103,11 @@ class ImageSegmentationApp:
         file_path = filedialog.asksaveasfilename(defaultextension=".state", filetypes=[("State Files", "*.state")]) #manejo de formatos al guardar
         if file_path:
             self.save_state(file_path)
+            
+    def export_png(self): #se exporta la imagen segmentada
+        file_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png")])
+        if file_path:
+            self.save_png(file_path)
 
     def setup_ui(self): #se crea la interfaz gráfica
         self.top_frame = Frame(self.master)
@@ -107,6 +120,7 @@ class ImageSegmentationApp:
         self.menu_bar.add_cascade(label="Archivo", menu=file_menu)
         file_menu.add_command(label="Abrir", command=self.open_state)
         file_menu.add_command(label="Guardar como", command=self.save_state_as)
+        file_menu.add_command(label="Exportar como PNG", command=self.export_png)
 
         self.k_entry = Entry(self.top_frame, width=5) #setups de segmentación
         self.k_entry.pack(side="left")
