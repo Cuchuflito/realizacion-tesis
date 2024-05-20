@@ -121,8 +121,8 @@ class ImageSegmentationApp:
 
         self.color_options = Frame(self.master, width=200) #setups opciones color
         self.color_options.pack(side="right", fill="y")
-        self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)
-        self.undo_button.pack(side="bottom", fill="y")
+       # self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)  Agregar si se desea deshacer
+       # self.undo_button.pack(side="bottom", fill="y")
         colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items(): #for para agregar colores a los radiobuttons
             frame = Frame(self.color_options)
@@ -160,25 +160,25 @@ class ImageSegmentationApp:
     def clear_current_canvas(self):
         self.canvas.delete("all") #se limpia el canvas actual
         
-    def undo_last_action(self):
-        if self.historia:
-            self.clear_current_canvas()  # Limpiar el canvas para evitar superposiciones visuales
-            # Restaurar el último estado guardado
-            state = self.historia.pop()
-            self.displayed_image = np.copy(state['displayed_image'])
-            self.labels = list(state['labels'])
-            self.polygon_points = list(state['polygon_points'])
-            self.is_drawing_polygon = state.get('is_drawing_polygon', False)
-            
-            # Si había un polígono siendo dibujado, eliminarlo visualmente
-            if self.current_polygon:
-                self.canvas.delete(self.current_polygon)
-                self.current_polygon = None
+   # def undo_last_action(self):
+    #    if self.historia:
+     #       self.clear_current_canvas()  # Limpiar el canvas para evitar superposiciones visuales                 FUNCIÓN DESHACER
+      #      # Restaurar el último estado guardado
+       #     state = self.historia.pop()
+        #    self.displayed_image = np.copy(state['displayed_image'])
+        #   self.labels = list(state['labels'])
+        #    self.polygon_points = list(state['polygon_points'])
+        #   self.is_drawing_polygon = state.get('is_drawing_polygon', False)
+        #    
+        #    # Si había un polígono siendo dibujado, eliminarlo visualmente
+        #    if self.current_polygon:
+        #       self.canvas.delete(self.current_polygon)
+        #        self.current_polygon = None
 
             # Actualizar la visualización con el estado restaurado
-            self.show_segmented_image()
-        else:
-            print("No hay más acciones para deshacer.")
+        #    self.show_segmented_image()
+        #else:
+        #    print("No hay más acciones para deshacer.")
 
 
     def apply_kmeans(self): #aplicar k-means a la imagen según el imput que diga el usuario
