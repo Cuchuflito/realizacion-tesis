@@ -19,7 +19,7 @@ class ImageSegmentationApp:
         self.scale = 1.0
 
         self.init_variables()
-        self.setup_ui()
+        self.ui_usuario()
         
         try:
             self.font = ImageFont.truetype("arial.ttf", 16)
@@ -37,10 +37,10 @@ class ImageSegmentationApp:
         self.offset_y = 0
         self.mode_var = StringVar(value="paint")
         self.color_var = StringVar(value="red")
-        self.load_image('imagen_prueba/imagen1.png')
+        self.cargar_imagen('imagen_prueba/imagen1.png')
         self.font = ImageFont.load_default()
 
-    def load_image(self, image_path): #se carga la imagen inicial
+    def cargar_imagen(self, image_path): #se carga la imagen inicial
         self.original_image = cv2.imread(image_path)
         if self.original_image is None:
             raise FileNotFoundError("Imagen no encontrada.")
@@ -50,7 +50,7 @@ class ImageSegmentationApp:
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
               
-    def save_png(self, file_path):
+    def guardar_png(self, file_path):
         img_with_labels = self.painted_image.copy()
         if len(img_with_labels.shape) == 2 or img_with_labels.shape[2] == 1:
             img_with_labels = cv2.cvtColor(img_with_labels, cv2.COLOR_GRAY2RGB)
@@ -70,7 +70,7 @@ class ImageSegmentationApp:
         resized_imagen.save(file_path, "PNG")
 
                     
-    def save_state(self, file_path): #se guarda el estado de la imagen
+    def guardar_estado(self, file_path): #se guarda el estado de la imagen
         state = {
             'original_image': self.original_image,
             'segmented_image': self.segmented_image,
@@ -89,7 +89,7 @@ class ImageSegmentationApp:
         with open(file_path, 'wb') as file:
             pickle.dump(state, file)
             
-    def load_state(self, file_path):  #se carga el estado de la imagen
+    def cargar_estado(self, file_path):  #se carga el estado de la imagen
         try:
             with open(file_path, 'rb') as file:
                 state = pickle.load(file)
@@ -106,39 +106,39 @@ class ImageSegmentationApp:
                 self.offset_y = state['offset_y']
                 self.mode_var.set(state['mode_var'])
                 self.color_var.set(state['color_var'])
-                self.show_segmented_image()
+                self.imagen_segmentada()
         except FileNotFoundError:
             print("No se encontró el archivo de estado.")
 
-    def open_state(self): #se abre el estado de la imagen cargada en load_state
+    def abrir(self): #se abre el estado de la imagen cargada en load_state
         file_path = filedialog.askopenfilename(defaultextension=".state", filetypes=[("State Files", "*.state")]) #manejo de formatos al abrir
         if file_path:
-            self.load_state(file_path)
+            self.cargar_estado(file_path)
 
-    def save_state_as(self):
+    def guardar_como(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".state", filetypes=[("State Files", "*.state")]) #manejo de formatos al guardar
         if file_path:
-            self.save_state(file_path)
+            self.guardar_estado(file_path)
             
-    def export_png(self): #se exporta la imagen segmentada
+    def exportar_png(self): #se exporta la imagen segmentada
         file_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png")])
         if file_path:
-            self.save_png(file_path)
+            self.guardar_png(file_path)
 
-    def setup_ui(self): #se crea la interfaz gráfica
+    def ui_usuario(self): #se crea la interfaz gráfica
         self.top_frame = Frame(self.master)
         self.top_frame.pack(side="top", fill="x", expand=True)      
         self.menu_bar = tk.Menu(self.master)
         self.master.config(menu=self.menu_bar)
         file_menu = tk.Menu(self.menu_bar)
         self.menu_bar.add_cascade(label="Archivo", menu=file_menu)
-        file_menu.add_command(label="Abrir", command=self.open_state)
-        file_menu.add_command(label="Guardar como", command=self.save_state_as)
-        file_menu.add_command(label="Exportar como PNG", command=self.export_png)
+        file_menu.add_command(label="Abrir", command=self.abrir)
+        file_menu.add_command(label="Guardar como", command=self.guardar_como)
+        file_menu.add_command(label="Exportar como PNG", command=self.exportar_png)
         self.k_entry = Entry(self.top_frame, width=5) #setups de segmentación
         self.k_entry.pack(side="left")
         self.k_entry.insert(0, "4")
-        self.kmeans_button = Button(self.top_frame, text="Segmentar", command=self.apply_kmeans)
+        self.kmeans_button = Button(self.top_frame, text="Segmentar", command=self.kmeans)
         self.kmeans_button.pack(side="left")
         self.zoom_in_button = Button(self.top_frame, text="Zoom In", command=self.zoom_in) #setups de zoom
         self.zoom_in_button.pack(side="left")
@@ -146,7 +146,7 @@ class ImageSegmentationApp:
         self.zoom_out_button.pack(side="left")
         self.color_options = Frame(self.master, width=200) #setups opciones color
         self.color_options.pack(side="right", fill="y")
-       # self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)  Agregar si se desea deshacer
+       # self.undo_button = Button(self.master, text="Deshacer", command=self.deshacer)  Agregar si se desea deshacer
        # self.undo_button.pack(side="bottom", fill="y")
         colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items(): #for para agregar colores a los radiobuttons
@@ -159,7 +159,7 @@ class ImageSegmentationApp:
         Radiobutton(self.mode_frame, text="Arrastrar", variable=self.mode_var, value="drag").pack(side="left")
         Radiobutton(self.mode_frame, text="Pintar", variable=self.mode_var, value="paint").pack(side="left")
         Radiobutton(self.mode_frame, text="Lazo", variable=self.mode_var, value="lazo").pack(side="left")
-        self.finish_polygon_button = Button(self.top_frame, text="Finalizar Polígono", command=self.finish_polygon)
+        self.finish_polygon_button = Button(self.top_frame, text="Finalizar Polígono", command=self.terminar_etiquetado)
         self.finish_polygon_button.pack(side="left")
 
         self.image_frame = Frame(self.master) #setups de imagen inicial
@@ -169,9 +169,7 @@ class ImageSegmentationApp:
         self.canvas.bind("<Button-1>", self.handle_click) #poscicionamiento de click	
         self.canvas.bind("<B1-Motion>", self.drag)
         self.canvas.bind("<ButtonRelease-1>", self.reset_drag)
-
-        
-        self.show_segmented_image()
+        self.imagen_segmentada()
         
         
     def save_to_historia(self): #se guarda el estado de la imagen en la pila de historial
@@ -185,7 +183,7 @@ class ImageSegmentationApp:
     def clear_current_canvas(self):
         self.canvas.delete("all") #se limpia el canvas actual
         
-   # def undo_last_action(self):
+   # def deshacer(self):
     #    if self.historia:
      #       self.clear_current_canvas()  # Limpiar el canvas para evitar superposiciones visuales                 FUNCIÓN DESHACER
       #      # Restaurar el último estado guardado
@@ -203,10 +201,8 @@ class ImageSegmentationApp:
             # Actualizar la visualización con el estado restaurado
         #    self.show_segmented_image()
         #else:
-        #    print("No hay más acciones para deshacer.")
-
-
-    def apply_kmeans(self): #aplicar k-means a la imagen según el imput que diga el usuario
+        #    print("Nada mas.")
+    def kmeans(self): #aplicar k-means a la imagen según el imput que diga el usuario
         self.save_to_historia()
         k = int(self.k_entry.get())
         kmeans = KMeans(n_clusters=k, random_state=0)
@@ -216,9 +212,9 @@ class ImageSegmentationApp:
         self.current_image = self.segmented_image.copy()
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
-        self.show_segmented_image()
+        self.imagen_segmentada()
 
-    def show_segmented_image(self): #muestra la imagen segmentada por k-means
+    def imagen_segmentada(self): #muestra la imagen segmentada por k-means
         resized_image = cv2.resize(self.displayed_image, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_LINEAR)
         img = Image.fromarray(resized_image)
         draw = ImageDraw.Draw(img)
@@ -235,7 +231,7 @@ class ImageSegmentationApp:
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
               
-    def safe_polygon_centroid(self, points):         #Encuentra un punto seguro dentro del polígono usando shapely.
+    def centroide_poligono_lazo(self, points):         #Encuentra un punto seguro dentro del polígono usando shapely.
         poly = Polygon(points)
         point = poly.representative_point()  # Devuelve un punto garantizado dentro del polígono
         return point.x, point.y
@@ -268,7 +264,7 @@ class ImageSegmentationApp:
         mask = np.zeros((self.painted_image.shape[0] + 2, self.painted_image.shape[1] + 2), np.uint8)
         cv2.floodFill(self.painted_image, mask, (x, y), color, (tolerance,) * 3, (tolerance,) * 3, flags=cv2.FLOODFILL_FIXED_RANGE)
         self.displayed_image = self.painted_image.copy()
-        self.show_segmented_image()
+        self.imagen_segmentada()
 
     def start_drag(self, event): #manejo de arrastre
         self.drag_start_x = event.x
@@ -280,7 +276,7 @@ class ImageSegmentationApp:
             self.offset_y += event.y - self.drag_start_y
             self.drag_start_x = event.x
             self.drag_start_y = event.y
-            self.show_segmented_image()
+            self.imagen_segmentada()
 
     def reset_drag(self, event): #luego de arrastrada la imagen, se resetea el arrastre
         self.drag_start_x = None
@@ -289,23 +285,23 @@ class ImageSegmentationApp:
     def zoom_in(self):
         if self.scale < 5:
             self.scale *= 1.1
-            self.show_segmented_image()
+            self.imagen_segmentada()
 
     def zoom_out(self):
         if self.scale > 0.5:
             self.scale *= 0.9
-            self.show_segmented_image()
+            self.imagen_segmentada()
 
-    def finish_polygon(self): #finalizar el etiquetado de un polígono pintado. El nombre elegido queda en medio y se guarda en la pila de historial
+    def terminar_etiquetado(self): #finalizar el etiquetado de un polígono pintado. El nombre elegido queda en medio y se guarda en la pila de historial
         self.save_to_historia()
         if self.is_drawing_polygon and self.polygon_points:
             label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
             if label:
-                centroid_x, centroid_y = self.safe_polygon_centroid(self.polygon_points)
+                centroid_x, centroid_y = self.centroide_poligono_lazo(self.polygon_points)
                 scaled_centroid_x = int((centroid_x - self.offset_x) / self.scale)
                 scaled_centroid_y = int((centroid_y - self.offset_y) / self.scale)
                 self.labels.append((label, (scaled_centroid_x, scaled_centroid_y)))
-                self.show_segmented_image()
+                self.imagen_segmentada()
                 self.is_drawing_polygon = False
                 self.polygon_points = []
             if self.current_polygon:
