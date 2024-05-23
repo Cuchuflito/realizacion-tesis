@@ -51,36 +51,22 @@ class ImageSegmentationApp:
         self.displayed_image = self.painted_image.copy()
               
     def save_png(self, file_path):
-        # Crear una copia de la imagen pintada para dibujar los rótulos
         img_with_labels = self.painted_image.copy()
-
-        # Convertir la imagen a RGB si es necesario
         if len(img_with_labels.shape) == 2 or img_with_labels.shape[2] == 1:
             img_with_labels = cv2.cvtColor(img_with_labels, cv2.COLOR_GRAY2RGB)
-
-        # Crear un objeto ImageDraw para dibujar sobre la imagen
         imagen = Image.fromarray(img_with_labels)
         draw = ImageDraw.Draw(imagen)
         draw.font = self.font  # Asignar la fuente al objeto Draw
 
         for label, (center_x, center_y) in self.labels:
-            # Calcular la posición del rótulo en las coordenadas originales de la imagen
             label_x = int(center_x)
             label_y = int(center_y)
-
-            # Obtener el rectángulo delimitador del texto
             box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
             box_x = label_x - box_width // 2
             box_y = label_y - box_height // 2
-
-            # Dibujar el rectángulo delimitador y el texto del rótulo
             draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
             draw.text((box_x, box_y), label, fill='white', font=self.font)
-
-        # Redimensionar la imagen con los rótulos dibujados
         resized_image = cv2.resize(np.array(imagen), None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_LINEAR)
-
-        # Guardar la imagen redimensionada
         resized_imagen = Image.fromarray(resized_image)
         resized_imagen.save(file_path, "PNG")
 
