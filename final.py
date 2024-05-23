@@ -10,7 +10,7 @@ import pickle
 class ImageSegmentationApp:
     def __init__(self, master):
         self.master = master
-        master.title("Aplicación de Segmentación y Pintura de Imagen")
+        master.title("Creación de Mapas")
         master.geometry("1280x720")
         master.resizable(False, False)
 
@@ -57,7 +57,6 @@ class ImageSegmentationApp:
         imagen = Image.fromarray(img_with_labels)
         draw = ImageDraw.Draw(imagen)
         draw.font = self.font  # Asignar la fuente al objeto Draw
-
         for label, (center_x, center_y) in self.labels:
             label_x = int(center_x)
             label_y = int(center_y)
@@ -128,9 +127,7 @@ class ImageSegmentationApp:
 
     def setup_ui(self): #se crea la interfaz gráfica
         self.top_frame = Frame(self.master)
-        self.top_frame.pack(side="top", fill="x", expand=True)
-        
-        #guardar y cargar    
+        self.top_frame.pack(side="top", fill="x", expand=True)      
         self.menu_bar = tk.Menu(self.master)
         self.master.config(menu=self.menu_bar)
         file_menu = tk.Menu(self.menu_bar)
@@ -138,18 +135,15 @@ class ImageSegmentationApp:
         file_menu.add_command(label="Abrir", command=self.open_state)
         file_menu.add_command(label="Guardar como", command=self.save_state_as)
         file_menu.add_command(label="Exportar como PNG", command=self.export_png)
-
         self.k_entry = Entry(self.top_frame, width=5) #setups de segmentación
         self.k_entry.pack(side="left")
         self.k_entry.insert(0, "4")
         self.kmeans_button = Button(self.top_frame, text="Segmentar", command=self.apply_kmeans)
         self.kmeans_button.pack(side="left")
-
         self.zoom_in_button = Button(self.top_frame, text="Zoom In", command=self.zoom_in) #setups de zoom
         self.zoom_in_button.pack(side="left")
         self.zoom_out_button = Button(self.top_frame, text="Zoom Out", command=self.zoom_out)
         self.zoom_out_button.pack(side="left")
-
         self.color_options = Frame(self.master, width=200) #setups opciones color
         self.color_options.pack(side="right", fill="y")
        # self.undo_button = Button(self.master, text="Deshacer", command=self.undo_last_action)  Agregar si se desea deshacer
@@ -229,27 +223,22 @@ class ImageSegmentationApp:
         img = Image.fromarray(resized_image)
         draw = ImageDraw.Draw(img)
         draw.font = self.font
-
         for label, (center_x, center_y) in self.labels:
             screen_x = int(center_x * self.scale)
             screen_y = int(center_y * self.scale)
-
             box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
             box_x = screen_x - box_width // 2
             box_y = screen_y - box_height // 2
             draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
             draw.text((box_x, box_y), label, fill='white', font=self.font)
-
         self.photo_image = ImageTk.PhotoImage(image=img)
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
-        
-        
+              
     def safe_polygon_centroid(self, points):         #Encuentra un punto seguro dentro del polígono usando shapely.
         poly = Polygon(points)
         point = poly.representative_point()  # Devuelve un punto garantizado dentro del polígono
         return point.x, point.y
-
 
     def handle_click(self, event): #manejo de clicks. Implementación de lógica entre lazo, pintar y arrastrar
         mode = self.mode_var.get()
@@ -323,119 +312,7 @@ class ImageSegmentationApp:
                 self.canvas.delete(self.current_polygon)
                 self.current_polygon = None
         else:
-            print("No hay más acciones para deshacer.")
-
-
-    def apply_kmeans(self): #aplicar k-means a la imagen según el imput que diga el usuario
-        self.save_to_historia()
-        k = int(self.k_entry.get())
-        kmeans = KMeans(n_clusters=k, random_state=0)
-        data = self.original_image.reshape((-1, 3)).astype(np.float32)
-        kmeans.fit(data)
-        self.segmented_image = kmeans.cluster_centers_[kmeans.labels_].reshape(self.original_image.shape).astype(np.uint8)
-        self.current_image = self.segmented_image.copy()
-        self.painted_image = self.segmented_image.copy()
-        self.displayed_image = self.painted_image.copy()
-        self.show_segmented_image()
-
-    def show_segmented_image(self): #muestra la imagen segmentada por k-means
-        resized_image = cv2.resize(self.displayed_image, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_LINEAR)
-        img = Image.fromarray(resized_image)
-        draw = ImageDraw.Draw(img)
-        draw.font = self.font
-
-        for label, (center_x, center_y) in self.labels:
-            screen_x = int(center_x * self.scale)
-            screen_y = int(center_y * self.scale)
-
-            box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
-            box_x = screen_x - box_width // 2
-            box_y = screen_y - box_height // 2
-            draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
-            draw.text((box_x, box_y), label, fill='white', font=self.font)
-
-        self.photo_image = ImageTk.PhotoImage(image=img)
-        self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
-        self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
-        
-        
-    def safe_polygon_centroid(self, points):         #Encuentra un punto seguro dentro del polígono usando shapely.
-        poly = Polygon(points)
-        point = poly.representative_point()  # Devuelve un punto garantizado dentro del polígono
-        return point.x, point.y
-
-
-    def handle_click(self, event): #manejo de clicks. Implementación de lógica entre lazo, pintar y arrastrar
-        mode = self.mode_var.get()
-        if mode == "lazo":
-            if not self.is_drawing_polygon:
-                self.polygon_points = [(event.x, event.y)]
-                self.is_drawing_polygon = True
-                if self.current_polygon:
-                    self.canvas.delete(self.current_polygon)
-                self.current_polygon = self.canvas.create_polygon(self.polygon_points, outline='red', fill='', width=2)
-            else:
-                self.polygon_points.append((event.x, event.y))
-                self.canvas.coords(self.current_polygon, sum(self.polygon_points, ()))
-        elif mode == "paint":
-            color_map = {"red": (255, 0, 0), "blue": (0, 0, 255), "green": (0, 255, 0), "yellow": (255, 255, 0)}
-            chosen_color = color_map[self.color_var.get()]
-            original_x = int((event.x - self.offset_x) / self.scale)
-            original_y = int((event.y - self.offset_y) / self.scale)
-            if 0 <= original_x < self.painted_image.shape[1] and 0 <= original_y < self.painted_image.shape[0]:
-                self.paint_segment(original_x, original_y, chosen_color)
-        elif mode == "drag":
-            self.start_drag(event)
-
-    def paint_segment(self, x, y, color): #aplicar floodfill a la imagen (herramienta bote de pintura)
-        self.save_to_historia()
-        tolerance = 20
-        mask = np.zeros((self.painted_image.shape[0] + 2, self.painted_image.shape[1] + 2), np.uint8)
-        cv2.floodFill(self.painted_image, mask, (x, y), color, (tolerance,) * 3, (tolerance,) * 3, flags=cv2.FLOODFILL_FIXED_RANGE)
-        self.displayed_image = self.painted_image.copy()
-        self.show_segmented_image()
-
-    def start_drag(self, event): #manejo de arrastre
-        self.drag_start_x = event.x
-        self.drag_start_y = event.y
-
-    def drag(self, event): #arrastrar la imagen
-        if hasattr(self, 'drag_start_x') and self.drag_start_x is not None:
-            self.offset_x += event.x - self.drag_start_x
-            self.offset_y += event.y - self.drag_start_y
-            self.drag_start_x = event.x
-            self.drag_start_y = event.y
-            self.show_segmented_image()
-
-    def reset_drag(self, event): #luego de arrastrada la imagen, se resetea el arrastre
-        self.drag_start_x = None
-        self.drag_start_y = None
-
-    def zoom_in(self):
-        if self.scale < 5:
-            self.scale *= 1.1
-            self.show_segmented_image()
-
-    def zoom_out(self):
-        if self.scale > 0.5:
-            self.scale *= 0.9
-            self.show_segmented_image()
-
-    def finish_polygon(self): #finalizar el etiquetado de un polígono pintado. El nombre elegido queda en medio y se guarda en la pila de historial
-        self.save_to_historia()
-        if self.is_drawing_polygon and self.polygon_points:
-            label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
-            if label:
-                centroid_x, centroid_y = self.safe_polygon_centroid(self.polygon_points)
-                scaled_centroid_x = int((centroid_x - self.offset_x) / self.scale)
-                scaled_centroid_y = int((centroid_y - self.offset_y) / self.scale)
-                self.labels.append((label, (scaled_centroid_x, scaled_centroid_y)))
-                self.show_segmented_image()
-                self.is_drawing_polygon = False
-                self.polygon_points = []
-            if self.current_polygon:
-                self.canvas.delete(self.current_polygon)
-                self.current_polygon = None
+            print("Nada más")
 
 root = tk.Tk()
 app = ImageSegmentationApp(root)
