@@ -13,6 +13,7 @@ class ImageSegmentationApp:
         master.title("Creación de Mapas")
         master.geometry("1280x720")
         master.resizable(False, False)
+        self.original_polygon_points = []
 
         self.canvas_width = 1040
         self.canvas_height = 720
@@ -253,28 +254,36 @@ class ImageSegmentationApp:
         mode = self.mode_var.get()
         if mode == "lazo":
             if not self.is_drawing_polygon:
-                self.polygon_points = [(event.x, event.y)]
+                self.polygon_points = []
+                self.original_polygon_points = []
+                self.polygon_points.append((event.x, event.y))
+                scaled_x = (event.x - self.offset_x) / self.scale
+                scaled_y = (event.y - self.offset_y) / self.scale
+                self.original_polygon_points.append((scaled_x, scaled_y))
                 self.is_drawing_polygon = True
                 if self.current_polygon:
                     self.canvas.delete(self.current_polygon)
                 self.current_polygon = self.canvas.create_polygon(self.polygon_points, outline='red', fill='', width=2)
             else:
+                self.polygon_points.append((event.x, event.y))
                 scaled_x = (event.x - self.offset_x) / self.scale
                 scaled_y = (event.y - self.offset_y) / self.scale
-                self.polygon_points.append((scaled_x, scaled_y))
-                self.canvas.coords(self.current_polygon, *[coord for point in self.polygon_points for coord in (point[0] * self.scale + self.offset_x, point[1] * self.scale + self.offset_y)])
+                self.original_polygon_points.append((scaled_x, scaled_y))
+                self.canvas.coords(self.current_polygon, *[coord for point in self.polygon_points for coord in point])
         elif mode == "drag":
-            self.is_drawing_polygon = False
             self.start_drag(event)
-
+                
+                
     def start_drag(self, event):
         self.drag_start_x = event.x
         self.drag_start_y = event.y
 
     def drag(self, event):
         if self.mode_var.get() == "drag" and hasattr(self, 'drag_start_x') and self.drag_start_x is not None:
-            self.offset_x += event.x - self.drag_start_x
-            self.offset_y += event.y - self.drag_start_y
+            dx = event.x - self.drag_start_x
+            dy = event.y - self.drag_start_y
+            self.offset_x += dx
+            self.offset_y += dy
             self.drag_start_x = event.x
             self.drag_start_y = event.y
             self.imagen_segmentada()
@@ -316,29 +325,29 @@ class ImageSegmentationApp:
 
     def terminar_etiquetado(self):
         self.save_to_historia()
-        if self.is_drawing_polygon and self.polygon_points:
+        if self.is_drawing_polygon and self.original_polygon_points:
             label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
             if label:
                 color_map = {"red": (255, 0, 0), "blue": (0, 0, 255), "green": (0, 255, 0), "yellow": (255, 255, 0)}
                 chosen_color = color_map[self.color_var.get()]
                 mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
-                points = np.array(self.polygon_points, dtype=np.int32)
+                points = np.array(self.original_polygon_points, dtype=np.int32)
                 cv2.fillPoly(mask, [points], 1)
                 self.painted_image[mask == 1] = chosen_color
                 self.displayed_image[mask == 1] = chosen_color
-                centroid_x, centroid_y = self.centroide_poligono_lazo(self.polygon_points)
-                scaled_centroid_x = int(centroid_x)
-                scaled_centroid_y = int(centroid_y)
-                self.labels.append((label, (scaled_centroid_x, scaled_centroid_y)))
+                centroid_x, centroid_y = self.centroide_poligono_lazo(self.original_polygon_points)
+                self.labels.append((label, (centroid_x, centroid_y)))
                 self.imagen_segmentada()
                 self.is_drawing_polygon = False
                 self.polygon_points = []
+                self.original_polygon_points = []
             if self.current_polygon:
                 self.canvas.delete(self.current_polygon)
                 self.current_polygon = None
         else:
             print("Nada más")
-
+            
+            
 root = tk.Tk()
 app = ImageSegmentationApp(root)
 root.mainloop()
