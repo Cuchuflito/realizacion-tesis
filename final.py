@@ -1,11 +1,12 @@
 import tkinter as tk
-from tkinter import Frame, Canvas, Entry, Button, StringVar, Radiobutton, simpledialog, NW, Label, filedialog
+from tkinter import Frame, Canvas, Entry, Button, StringVar, Radiobutton, simpledialog, NW, Label, filedialog, messagebox
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import cv2
 import numpy as np
 from sklearn.cluster import KMeans
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 import pickle
+from shapely.validation import make_valid
 
 class ImageSegmentationApp:
     def __init__(self, master):
@@ -13,7 +14,6 @@ class ImageSegmentationApp:
         master.title("Creación de Mapas")
         master.geometry("1280x720")
         master.resizable(False, False)
-        self.original_polygon_points = []
 
         self.canvas_width = 1040
         self.canvas_height = 720
@@ -27,10 +27,11 @@ class ImageSegmentationApp:
         except:
             self.font = ImageFont.load_default()
 
-    def init_variables(self): # inicializar variables
+    def init_variables(self):
         self.historia = []
         self.labels = []
         self.polygon_points = []
+        self.original_polygon_points = []
         self.is_drawing_polygon = False
         self.current_polygon = None
         self.scale = 1.0
@@ -39,10 +40,11 @@ class ImageSegmentationApp:
         self.mode_var = StringVar(value="lazo")
         self.color_var = StringVar(value="red")
         self.color_map = {"red": 1, "blue": 2, "green": 3, "yellow": 4}
+        self.existing_polygons = []
         self.cargar_imagen('imagen_prueba/imagen1.png')
         self.font = ImageFont.load_default()
 
-    def cargar_imagen(self, image_path): # cargar imagen
+    def cargar_imagen(self, image_path):
         self.original_image = cv2.imread(image_path)
         if self.original_image is None:
             raise FileNotFoundError("Imagen no encontrada.")
@@ -51,7 +53,7 @@ class ImageSegmentationApp:
         self.current_image = self.segmented_image.copy()
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
-              
+
     def guardar_png(self, file_path):
         img_with_labels = self.painted_image.copy()
         if len(img_with_labels.shape) == 2 or img_with_labels.shape[2] == 1:
@@ -75,7 +77,6 @@ class ImageSegmentationApp:
         rows, cols, _ = self.painted_image.shape
         asc_array = np.zeros((rows, cols), dtype=int)
 
-        # Asignar valor 0 a los píxeles de la imagen original
         original_mask = np.all(self.painted_image == self.original_image, axis=-1)
         asc_array[original_mask] = 0
 
@@ -103,16 +104,18 @@ class ImageSegmentationApp:
             'displayed_image': self.displayed_image,
             'labels': self.labels,
             'polygon_points': self.polygon_points,
+            'original_polygon_points': self.original_polygon_points,
             'is_drawing_polygon': self.is_drawing_polygon,
             'scale': self.scale,
             'offset_x': self.offset_x,
             'offset_y': self.offset_y,
             'mode_var': self.mode_var.get(),
             'color_var': self.color_var.get(),
+            'existing_polygons': self.existing_polygons
         }
         with open(file_path, 'wb') as file:
             pickle.dump(state, file)
-            
+
     def cargar_estado(self, file_path):
         try:
             with open(file_path, 'rb') as file:
@@ -124,12 +127,14 @@ class ImageSegmentationApp:
                 self.displayed_image = state['displayed_image']
                 self.labels = state['labels']
                 self.polygon_points = state['polygon_points']
+                self.original_polygon_points = state['original_polygon_points']
                 self.is_drawing_polygon = state['is_drawing_polygon']
                 self.scale = state['scale']
                 self.offset_x = state['offset_x']
                 self.offset_y = state['offset_y']
                 self.mode_var.set(state['mode_var'])
                 self.color_var.set(state['color_var'])
+                self.existing_polygons = state['existing_polygons']
                 self.imagen_segmentada()
         except FileNotFoundError:
             print("No se encontró el archivo de estado.")
@@ -143,7 +148,7 @@ class ImageSegmentationApp:
         file_path = filedialog.asksaveasfilename(defaultextension=".state", filetypes=[("State Files", "*.state")])
         if file_path:
             self.guardar_estado(file_path)
-            
+
     def exportar_png(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png")])
         if file_path:
@@ -202,18 +207,20 @@ class ImageSegmentationApp:
         self.canvas.bind("<B1-Motion>", self.drag)
         self.canvas.bind("<ButtonRelease-1>", self.reset_drag)
         self.imagen_segmentada()
-        
+
     def save_to_historia(self):
         current_state = {
             'displayed_image': self.displayed_image.copy(),
             'labels': list(self.labels),
-            'polygon_points': list(self.polygon_points)
+            'polygon_points': list(self.polygon_points),
+            'original_polygon_points': list(self.original_polygon_points),
+            'existing_polygons': list(self.existing_polygons)
         }
         self.historia.append(current_state)
 
     def clear_current_canvas(self):
         self.canvas.delete("all")
-        
+
     def kmeans(self):
         self.save_to_historia()
         k = int(self.k_entry.get())
@@ -226,6 +233,8 @@ class ImageSegmentationApp:
         self.displayed_image = self.painted_image.copy()
         self.is_drawing_polygon = False
         self.polygon_points = []
+        self.original_polygon_points = []
+        self.existing_polygons = []
         self.imagen_segmentada()
 
     def imagen_segmentada(self):
@@ -244,36 +253,50 @@ class ImageSegmentationApp:
         self.photo_image = ImageTk.PhotoImage(image=img)
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
-              
+
     def centroide_poligono_lazo(self, points):
         poly = Polygon(points)
         point = poly.representative_point()
         return point.x, point.y
 
+    def check_polygon_overlap(self, new_polygon_points):
+        new_polygon = Polygon(new_polygon_points)
+        new_polygon = make_valid(new_polygon)  # Validar y corregir la geometría
+        overlap_threshold = 0.2  # 20% de superposición
+
+        for poly in self.existing_polygons:
+            poly = make_valid(poly)  # Validar y corregir la geometría existente
+            intersection = new_polygon.intersection(poly)
+            if intersection.area / new_polygon.area > overlap_threshold:
+                return True
+
+        return False
+        
+    
     def handle_click(self, event):
         mode = self.mode_var.get()
         if mode == "lazo":
             if not self.is_drawing_polygon:
                 self.polygon_points = []
                 self.original_polygon_points = []
-                self.polygon_points.append((event.x, event.y))
                 scaled_x = (event.x - self.offset_x) / self.scale
                 scaled_y = (event.y - self.offset_y) / self.scale
+                self.polygon_points.append((event.x, event.y))
                 self.original_polygon_points.append((scaled_x, scaled_y))
                 self.is_drawing_polygon = True
                 if self.current_polygon:
                     self.canvas.delete(self.current_polygon)
                 self.current_polygon = self.canvas.create_polygon(self.polygon_points, outline='red', fill='', width=2)
             else:
-                self.polygon_points.append((event.x, event.y))
                 scaled_x = (event.x - self.offset_x) / self.scale
                 scaled_y = (event.y - self.offset_y) / self.scale
+                self.polygon_points.append((event.x, event.y))
                 self.original_polygon_points.append((scaled_x, scaled_y))
                 self.canvas.coords(self.current_polygon, *[coord for point in self.polygon_points for coord in point])
         elif mode == "drag":
+            self.is_drawing_polygon = False
             self.start_drag(event)
-                
-                
+
     def start_drag(self, event):
         self.drag_start_x = event.x
         self.drag_start_y = event.y
@@ -297,12 +320,55 @@ class ImageSegmentationApp:
         if self.scale < 5:
             self.scale *= 1.1
             self.imagen_segmentada()
+            self.is_drawing_polygon = False
+            self.polygon_points = []
 
     def zoom_out(self):
         if self.scale > 0.5:
             self.scale *= 0.9
             self.imagen_segmentada()
-            
+            self.is_drawing_polygon = False
+            self.polygon_points = []
+
+    def terminar_etiquetado(self):
+        self.save_to_historia()
+        if self.is_drawing_polygon and self.original_polygon_points:
+            if self.check_polygon_overlap(self.original_polygon_points):
+                messagebox.showerror("Error", "El nuevo polígono se superpone con uno existente. Intente nuevamente.")
+                self.is_drawing_polygon = False
+                self.polygon_points = []
+                self.original_polygon_points = []
+                if self.current_polygon:
+                    self.canvas.delete(self.current_polygon)
+                    self.current_polygon = None
+            else:
+                label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
+                if label:
+                    color_map = {"red": (255, 0, 0), "blue": (0, 0, 255), "green": (0, 255, 0), "yellow": (255, 255, 0)}
+                    chosen_color = color_map[self.color_var.get()]
+                    mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
+                    points = np.array(self.original_polygon_points, dtype=np.int32)
+                    cv2.fillPoly(mask, [points], 1)
+                    self.painted_image[mask == 1] = chosen_color
+                    self.displayed_image[mask == 1] = chosen_color
+                    centroid_x, centroid_y = self.centroide_poligono_lazo(self.original_polygon_points)
+                    self.labels.append((label, (centroid_x, centroid_y)))
+                    self.existing_polygons.append(Polygon(self.original_polygon_points))
+                    self.imagen_segmentada()
+                    self.is_drawing_polygon = False
+                    self.polygon_points = []
+                    self.original_polygon_points = []
+                if self.current_polygon:
+                    self.canvas.delete(self.current_polygon)
+                    self.current_polygon = None
+        else:
+            print("Nada más")
+
+root = tk.Tk()
+app = ImageSegmentationApp(root)
+root.mainloop()
+
+
     # def deshacer(self):
     #    if self.historia:
      #       self.clear_current_canvas()  # Limpiar el canvas para evitar superposiciones visuales
@@ -323,31 +389,3 @@ class ImageSegmentationApp:
         #else:
         #    print("Nada mas.")
 
-    def terminar_etiquetado(self):
-        self.save_to_historia()
-        if self.is_drawing_polygon and self.original_polygon_points:
-            label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
-            if label:
-                color_map = {"red": (255, 0, 0), "blue": (0, 0, 255), "green": (0, 255, 0), "yellow": (255, 255, 0)}
-                chosen_color = color_map[self.color_var.get()]
-                mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
-                points = np.array(self.original_polygon_points, dtype=np.int32)
-                cv2.fillPoly(mask, [points], 1)
-                self.painted_image[mask == 1] = chosen_color
-                self.displayed_image[mask == 1] = chosen_color
-                centroid_x, centroid_y = self.centroide_poligono_lazo(self.original_polygon_points)
-                self.labels.append((label, (centroid_x, centroid_y)))
-                self.imagen_segmentada()
-                self.is_drawing_polygon = False
-                self.polygon_points = []
-                self.original_polygon_points = []
-            if self.current_polygon:
-                self.canvas.delete(self.current_polygon)
-                self.current_polygon = None
-        else:
-            print("Nada más")
-            
-            
-root = tk.Tk()
-app = ImageSegmentationApp(root)
-root.mainloop()
