@@ -41,18 +41,21 @@ class ImageSegmentationApp:
         self.color_var = StringVar(value="red")
         self.color_map = {"red": 1, "blue": 2, "green": 3, "yellow": 4}
         self.existing_polygons = []
-        self.cargar_imagen('imagen_prueba/imagen1.png')
         self.font = ImageFont.load_default()
 
-    def cargar_imagen(self, image_path):
-        self.original_image = cv2.imread(image_path)
-        if self.original_image is None:
-            raise FileNotFoundError("Imagen no encontrada.")
-        self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-        self.segmented_image = self.original_image.copy()
-        self.current_image = self.segmented_image.copy()
-        self.painted_image = self.segmented_image.copy()
-        self.displayed_image = self.painted_image.copy()
+    def cargar_imagen(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
+        if file_path:
+            self.original_image = cv2.imread(file_path)
+            if self.original_image is None:
+                messagebox.showerror("Error", "Imagen no encontrada.")
+                return
+            self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
+            self.segmented_image = self.original_image.copy()
+            self.current_image = self.segmented_image.copy()
+            self.painted_image = self.segmented_image.copy()
+            self.displayed_image = self.painted_image.copy()
+            self.imagen_segmentada()
 
     def guardar_png(self, file_path):
         img_with_labels = self.painted_image.copy()
@@ -172,6 +175,9 @@ class ImageSegmentationApp:
         file_menu.add_command(label="Exportar como PNG", command=self.exportar_png)
         file_menu.add_command(label="Exportar como ASC", command=self.exportar_asc)
 
+        self.load_image_button = Button(self.top_frame, text="Cargar Imagen", command=self.cargar_imagen)
+        self.load_image_button.pack(side="left")
+
         self.k_entry = Entry(self.top_frame, width=5)
         self.k_entry.pack(side="left")
         self.k_entry.insert(0, "4")
@@ -206,7 +212,6 @@ class ImageSegmentationApp:
         self.canvas.bind("<Button-1>", self.handle_click)
         self.canvas.bind("<B1-Motion>", self.drag)
         self.canvas.bind("<ButtonRelease-1>", self.reset_drag)
-        self.imagen_segmentada()
 
     def save_to_historia(self):
         current_state = {
@@ -271,8 +276,7 @@ class ImageSegmentationApp:
                 return True
 
         return False
-        
-    
+
     def handle_click(self, event):
         mode = self.mode_var.get()
         if mode == "lazo":
@@ -367,6 +371,7 @@ class ImageSegmentationApp:
 root = tk.Tk()
 app = ImageSegmentationApp(root)
 root.mainloop()
+
 
 
     # def deshacer(self):
