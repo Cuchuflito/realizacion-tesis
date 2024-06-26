@@ -340,7 +340,6 @@ class ImageSegmentationApp:
     def terminar_etiquetado(self):
         self.save_to_historia()
         if self.is_drawing_polygon and self.original_polygon_points:
-            # Eliminamos la verificación de superposición
             label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:", initialvalue="")
             if label is None:
                 label = ""
