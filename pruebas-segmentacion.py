@@ -31,14 +31,14 @@ class ImageSegmentationApp:
         self.button_frame.pack()
 
         # Campo de entrada para el número de centroides
-        self.k_entry_label = Label(self.button_frame, text="Número de centroides (k):")
+        self.k_entry_label = Label(self.button_frame, text="Número de centroides:")
         self.k_entry_label.pack(side=LEFT)
         self.k_entry = Entry(self.button_frame)
         self.k_entry.pack(side=LEFT)
         self.k_entry.insert(0, "4")  # Valor predeterminado para k
 
         # Botón para aplicar K-Means clustering
-        self.kmeans_button = Button(self.button_frame, text="K-Means Segmentation")
+        self.kmeans_button = Button(self.button_frame, text="Segmentar")
         self.kmeans_button.pack(side=LEFT)
 
         # Botones para etiquetar áreas

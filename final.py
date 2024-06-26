@@ -38,8 +38,8 @@ class ImageSegmentationApp:
         self.offset_x = 0
         self.offset_y = 0
         self.mode_var = StringVar(value="lazo")
-        self.color_var = StringVar(value="red")
-        self.color_map = {"red": 1, "blue": 2, "green": 3, "yellow": 4}
+        self.color_var = StringVar(value="orange")
+        self.color_map = {"orange": 1, "blue": 2, "green": 3, "purple": 4}
         self.existing_polygons = []
         self.font = ImageFont.load_default()
 
@@ -84,10 +84,10 @@ class ImageSegmentationApp:
         asc_array[original_mask] = 0
 
         color_bgr_map = {
-            "blue": [0, 0, 255],
-            "red": [255, 0, 0],
-            "green": [0, 255, 0],
-            "yellow": [255, 255, 0]
+            "blue": [17, 131, 238],
+            "orange": [238, 191, 17],
+            "green": [107, 229, 68],
+            "purple": [149, 29, 205]
         }
         value = 1
         for color_name, color_bgr in color_bgr_map.items():
@@ -190,7 +190,7 @@ class ImageSegmentationApp:
 
         self.color_options = Frame(self.master, width=200)
         self.color_options.pack(side="right", fill="y")
-        colors = {"Azul (Mar)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
+        colors = {"Azul (Mar)": "blue", "Naranja (Urbano)": "orange", "Verde (Forestal)": "green", "Morado (Edificios Históricos)": "purple"}
         for text, value in colors.items():
             frame = Frame(self.color_options)
             frame.pack(fill="x")
@@ -348,7 +348,7 @@ class ImageSegmentationApp:
             else:
                 label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
                 if label:
-                    color_map = {"red": (255, 0, 0), "blue": (0, 0, 255), "green": (0, 255, 0), "yellow": (255, 255, 0)}
+                    color_map = {"orange": (238, 191, 17), "blue": (17, 131, 238), "green": (107, 229, 68), "purple": (149, 29, 205)}
                     chosen_color = color_map[self.color_var.get()]
                     mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
                     points = np.array(self.original_polygon_points, dtype=np.int32)
@@ -371,26 +371,3 @@ class ImageSegmentationApp:
 root = tk.Tk()
 app = ImageSegmentationApp(root)
 root.mainloop()
-
-
-
-    # def deshacer(self):
-    #    if self.historia:
-     #       self.clear_current_canvas()  # Limpiar el canvas para evitar superposiciones visuales
-      #      # Restaurar el último estado guardado
-       #     state = self.historia.pop()
-        #    self.displayed_image = np.copy(state['displayed_image'])
-        #   self.labels = list(state['labels'])
-        #    self.polygon_points = list(state['polygon_points'])
-        #   self.is_drawing_polygon = state.get('is_drawing_polygon', False)
-        #    
-        #    # Si había un polígono siendo dibujado, eliminarlo visualmente
-        #    if self.current_polygon:
-        #       self.canvas.delete(self.current_polygon)
-        #        self.current_polygon = None
-
-            # Actualizar la visualización con el estado restaurado
-        #    self.show_segmented_image()
-        #else:
-        #    print("Nada mas.")
-

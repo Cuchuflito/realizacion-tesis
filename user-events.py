@@ -4,11 +4,12 @@ from tkinter.ttk import Button
 from PIL import Image, ImageTk
 import cv2
 import numpy as np
+import time
 
 class ImageSegmentationApp:
     def __init__(self, master):
         self.master = master
-        master.title("Segmented Image")
+        master.title("Creación de Mapas de Uso de Suelo")
 
         self.original_image = cv2.imread('imagen_prueba/image.jpg')
         if self.original_image is None:
@@ -21,11 +22,11 @@ class ImageSegmentationApp:
         self.color_options = Frame(master)
         self.color_options.pack(side="top")
         self.color_var = StringVar(value="red")
-        colors = {"Azul (Water)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
+        colors = {"Azul (Agua)": "blue", "Rojo (Urbano)": "red", "Verde (Forestal)": "green", "Amarillo (Agricultura)": "yellow"}
         for text, value in colors.items():
             Radiobutton(self.color_options, text=text, variable=self.color_var, value=value).pack(side="left")
 
-        self.undo_button = Button(self.color_options, text="Undo", command=self.undo)
+        self.undo_button = Button(self.color_options, text="Deshacer", command=self.undo)
         self.undo_button.pack(side="right")
 
         self.image_frame = Frame(master)
@@ -39,6 +40,7 @@ class ImageSegmentationApp:
         self.show_segmented_image()
 
     def show_segmented_image(self):
+        start_time = time.perf_counter()  # Iniciar temporizador
         height, width, _ = self.original_image.shape
         num_rows, num_cols = 32, 32
         segment_height = height // num_rows
@@ -62,10 +64,14 @@ class ImageSegmentationApp:
                 self.canvas.create_image(x0, y0, image=photo, anchor=NW)
 
         # Dibujar líneas de la cuadrícula
-        for i in range(1, num_rows):
-            self.canvas.create_line(0, i * segment_height, width, i * segment_height, fill="green")
-        for j in range(1, num_cols):
-            self.canvas.create_line(j * segment_width, 0, j * segment_width, height, fill="green")
+        # for i in range(1, num_rows):
+        #     self.canvas.create_line(0, i * segment_height, width, i * segment_height, fill="green")
+        # for j in range(1, num_cols):
+        #     self.canvas.create_line(j * segment_width, 0, j * segment_width, height, fill="green")
+
+        end_time = time.perf_counter()  # Finalizar temporizador
+        elapsed_time = end_time - start_time
+        print(f"show_segmented_image took {elapsed_time:.4f} seconds")
 
     def handle_click(self, event):
         self.undo_stack.append(self.original_image.copy())  # Guardar estado antes de modificar
