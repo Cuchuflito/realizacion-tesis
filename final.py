@@ -23,7 +23,7 @@ class ImageSegmentationApp:
         self.ui_usuario()
 
         try:
-            self.font = ImageFont.truetype("arial.ttf", 16)
+            self.font = ImageFont.truetype("arial.ttf", 12)
         except:
             self.font = ImageFont.load_default()
 
@@ -65,13 +65,14 @@ class ImageSegmentationApp:
         draw = ImageDraw.Draw(imagen)
         draw.font = self.font
         for label, (center_x, center_y) in self.labels:
-            label_x = int(center_x)
-            label_y = int(center_y)
-            box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
-            box_x = label_x - box_width // 2
-            box_y = label_y - box_height // 2
-            draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
-            draw.text((box_x, box_y), label, fill='white', font=self.font)
+            if label:  # Solo dibujar si la etiqueta no está vacía
+                label_x = int(center_x)
+                label_y = int(center_y)
+                box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
+                box_x = label_x - box_width // 2
+                box_y = label_y - box_height // 2
+                draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
+                draw.text((box_x, box_y), label, fill='white', font=self.font)
         resized_image = cv2.resize(np.array(imagen), None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_LINEAR)
         resized_imagen = Image.fromarray(resized_image)
         resized_imagen.save(file_path, "PNG")
@@ -84,10 +85,11 @@ class ImageSegmentationApp:
         asc_array[original_mask] = 0
 
         color_bgr_map = {
-            "blue": [17, 131, 238],
+            "blue": [17, 131, 168],
             "orange": [238, 191, 17],
             "green": [107, 229, 68],
-            "purple": [149, 29, 205]
+            "purple": [149, 29, 205],
+            "brown": [109, 93, 33]
         }
         value = 1
         for color_name, color_bgr in color_bgr_map.items():
@@ -190,7 +192,7 @@ class ImageSegmentationApp:
 
         self.color_options = Frame(self.master, width=200)
         self.color_options.pack(side="right", fill="y")
-        colors = {"Azul (Mar)": "blue", "Naranja (Urbano)": "orange", "Verde (Forestal)": "green", "Morado (Edificios Históricos)": "purple"}
+        colors = {"Azul (Mar)": "blue", "Naranja (Urbano)": "orange", "Verde (Forestal)": "green", "Morado (Edificio Historico)": "purple", "Café (Tierra)":"brown"}
         for text, value in colors.items():
             frame = Frame(self.color_options)
             frame.pack(fill="x")
@@ -248,13 +250,14 @@ class ImageSegmentationApp:
         draw = ImageDraw.Draw(img)
         draw.font = self.font
         for label, (center_x, center_y) in self.labels:
-            screen_x = int(center_x * self.scale)
-            screen_y = int(center_y * self.scale)
-            box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
-            box_x = screen_x - box_width // 2
-            box_y = screen_y - box_height // 2
-            draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
-            draw.text((box_x, box_y), label, fill='white', font=self.font)
+            if label:  # Solo dibujar si la etiqueta no está vacía
+                screen_x = int(center_x * self.scale)
+                screen_y = int(center_y * self.scale)
+                box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
+                box_x = screen_x - box_width // 2
+                box_y = screen_y - box_height // 2
+                draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
+                draw.text((box_x, box_y), label, fill='white', font=self.font)
         self.photo_image = ImageTk.PhotoImage(image=img)
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
@@ -267,7 +270,7 @@ class ImageSegmentationApp:
     def check_polygon_overlap(self, new_polygon_points):
         new_polygon = Polygon(new_polygon_points)
         new_polygon = make_valid(new_polygon)  # Validar y corregir la geometría
-        overlap_threshold = 0.2  # 20% de superposición
+        overlap_threshold = 0.6  # 20% de superposición
 
         for poly in self.existing_polygons:
             poly = make_valid(poly)  # Validar y corregir la geometría existente
@@ -337,36 +340,31 @@ class ImageSegmentationApp:
     def terminar_etiquetado(self):
         self.save_to_historia()
         if self.is_drawing_polygon and self.original_polygon_points:
-            if self.check_polygon_overlap(self.original_polygon_points):
-                messagebox.showerror("Error", "El nuevo polígono se superpone con uno existente. Intente nuevamente.")
-                self.is_drawing_polygon = False
-                self.polygon_points = []
-                self.original_polygon_points = []
-                if self.current_polygon:
-                    self.canvas.delete(self.current_polygon)
-                    self.current_polygon = None
-            else:
-                label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:")
-                if label:
-                    color_map = {"orange": (238, 191, 17), "blue": (17, 131, 238), "green": (107, 229, 68), "purple": (149, 29, 205)}
-                    chosen_color = color_map[self.color_var.get()]
-                    mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
-                    points = np.array(self.original_polygon_points, dtype=np.int32)
-                    cv2.fillPoly(mask, [points], 1)
-                    self.painted_image[mask == 1] = chosen_color
-                    self.displayed_image[mask == 1] = chosen_color
-                    centroid_x, centroid_y = self.centroide_poligono_lazo(self.original_polygon_points)
-                    self.labels.append((label, (centroid_x, centroid_y)))
-                    self.existing_polygons.append(Polygon(self.original_polygon_points))
-                    self.imagen_segmentada()
-                    self.is_drawing_polygon = False
-                    self.polygon_points = []
-                    self.original_polygon_points = []
-                if self.current_polygon:
-                    self.canvas.delete(self.current_polygon)
-                    self.current_polygon = None
+            # Eliminamos la verificación de superposición
+            label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:", initialvalue="")
+            if label is None:
+                label = ""
+            color_map = {"orange": (238, 191, 17), "blue": (17, 131, 168), "green": (107, 229, 68), "purple": (149, 29, 205), "brown": (109, 93, 33)}
+            chosen_color = color_map[self.color_var.get()]
+            mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
+            points = np.array(self.original_polygon_points, dtype=np.int32)
+            cv2.fillPoly(mask, [points], 1)
+            self.painted_image[mask == 1] = chosen_color
+            self.displayed_image[mask == 1] = chosen_color
+            if label:
+                centroid_x, centroid_y = self.centroide_poligono_lazo(self.original_polygon_points)
+                self.labels.append((label, (centroid_x, centroid_y)))
+            self.existing_polygons.append(Polygon(self.original_polygon_points))
+            self.imagen_segmentada()
+            self.is_drawing_polygon = False
+            self.polygon_points = []
+            self.original_polygon_points = []
+            if self.current_polygon:
+                self.canvas.delete(self.current_polygon)
+                self.current_polygon = None
         else:
             print("Nada más")
+
 
 root = tk.Tk()
 app = ImageSegmentationApp(root)
