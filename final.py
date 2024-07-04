@@ -74,18 +74,7 @@ class creacion_de_mapas:
         imagen = Image.fromarray(img_with_labels)
         draw = ImageDraw.Draw(imagen)
         draw.font = self.font
-        #se dibujan los etiquetados presentes dentro de la imagen que se guardará
-        for label, (center_x, center_y) in self.labels:
-            if label:  
-                label_x = int(center_x)
-                label_y = int(center_y)
-                box_width, box_height = draw.font.getbbox(label, anchor='lt')[2:]
-                box_x = label_x - box_width // 2
-                box_y = label_y - box_height // 2
-                #se dibuja un rectángulo negro al fondo de cada etiqueta para poder distinguirla
-                draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
-                draw.text((box_x, box_y), label, fill='white', font=self.font)
-                #se redimensiona y guarda la imagen
+        #se redimensiona y guarda la imagen
         resized_image = cv2.resize(np.array(imagen), None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_LINEAR)
         resized_imagen = Image.fromarray(resized_image)
         resized_imagen.save(file_path, "PNG")
@@ -253,25 +242,31 @@ class creacion_de_mapas:
     def kmeans(self):
         start_time = time.perf_counter()
         self.save_to_historia()
-        #obtener clusters(colores) según la entrada del usuario
+        # Crear una máscara para los polígonos existentes
+        mask = np.zeros(self.original_image.shape[:2], dtype=np.uint8)
+        for polygon in self.existing_polygons:
+            points = np.array(polygon.exterior.coords, dtype=np.int32)
+            cv2.fillPoly(mask, [points], 1)
+        # Obtener clusters (colores) según la entrada del usuario
         k = int(self.k_entry.get())
         kmeans = KMeans(n_clusters=k, random_state=0)
-        #compatibiliza la imagen para K-means. En este punto, la imagen ya es un array con el que numpy puede trabajar
-        data = self.original_image.reshape((-1, 3)).astype(np.float32)
+        # Aplicar K-means solo a las áreas no cubiertas por los polígonos
+        data = self.original_image[mask == 0].reshape((-1, 3)).astype(np.float32)
         kmeans.fit(data)
-        #se alimenta el algoritmo con los colores de la imagen
-        self.segmented_image = kmeans.cluster_centers_[kmeans.labels_].reshape(self.original_image.shape).astype(np.uint8)
-        #crea la imagen segmentada
+        # Crear la imagen segmentada
+        self.segmented_image = self.original_image.copy()
+        self.segmented_image[mask == 0] = kmeans.cluster_centers_[kmeans.predict(data)].reshape(-1, 3).astype(np.uint8)
+        # Combinar la imagen segmentada con los polígonos existentes
         self.current_image = self.segmented_image.copy()
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
-        #se guarda estado para poder guardar estado general en la app
-        self.is_drawing_polygon = False
-        self.polygon_points = []
-        self.original_polygon_points = []
-        self.existing_polygons = []
+        # Volver a dibujar los polígonos existentes
+        for polygon in self.existing_polygons:
+            points = np.array(polygon.exterior.coords, dtype=np.int32)
+            color = self.painted_image[points[0][1], points[0][0]].tolist()  # Convertir a lista
+            cv2.fillPoly(self.painted_image, [points], color)
+            cv2.fillPoly(self.displayed_image, [points], color)
         self.imagen_segmentada()
-        #se limpian variables para una nueva utilización
         print(f"Tiempo de ejecución de K-means: {time.perf_counter() - start_time:.6f} segundos.")
 
     def imagen_segmentada(self):
@@ -385,21 +380,27 @@ class creacion_de_mapas:
 
     def terminar_etiquetado(self):
         self.save_to_historia()
+        #verificación inicial si hay polígonos en curso o puntos de polígono definidos
         if self.is_drawing_polygon and self.original_polygon_points:
             label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:", initialvalue="")
             if label is None:
                 label = ""
+            #mapa de colores RGB seleccionables para polígonos (el sistema lo obtiene según el radiobutton que de el usuario.
             color_map = {"orange": (238, 191, 17), "blue": (17, 131, 168), "green": (107, 229, 68), "purple": (149, 29, 205), "brown": (109, 93, 33)}
             chosen_color = color_map[self.color_var.get()]
+            #se crea una máscara binaria, se convierten los puntos del polígono a un formato adecuado para poder pintar, y se rellena el polígono
             mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
             points = np.array(self.original_polygon_points, dtype=np.int32)
             cv2.fillPoly(mask, [points], 1)
+            #se aplican los colores en los estados actuales
             self.painted_image[mask == 1] = chosen_color
             self.displayed_image[mask == 1] = chosen_color
+            #si se etiqueta el polígono, se calcula su centroide para ubicar la etiqueta misma. Etiqueta se añade a lista de etiquetas
             if label:
                 centroid_x, centroid_y = self.centroide_poligono_lazo(self.original_polygon_points)
                 self.labels.append((label, (centroid_x, centroid_y)))
             self.existing_polygons.append(Polygon(self.original_polygon_points))
+            #se actualiza el canvas
             self.imagen_segmentada()
             self.is_drawing_polygon = False
             self.polygon_points = []
