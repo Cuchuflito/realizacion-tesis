@@ -8,6 +8,9 @@ from shapely.geometry import Polygon, MultiPolygon
 import pickle
 from shapely.validation import make_valid
 import time
+import os
+from tkinter.simpledialog import Dialog
+
 
 start_time = time.perf_counter()
 
@@ -53,17 +56,20 @@ class creacion_de_mapas:
         start_time = time.perf_counter()
         file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
         if file_path:
-            self.original_image = cv2.imread(file_path)
-            if self.original_image is None:
-                messagebox.showerror("Error", "Imagen no encontrada.")
-                return
-            self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-            self.segmented_image = self.original_image.copy()
-            self.current_image = self.segmented_image.copy()
-            self.painted_image = self.segmented_image.copy()
-            self.displayed_image = self.painted_image.copy()
-            self.imagen_segmentada()
-            print(f"Tiempo de carga de la imagen: {time.perf_counter() - start_time:.6f} segundos.")
+            try:
+                self.original_image = cv2.imdecode(np.fromfile(file_path, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if self.original_image is None:
+                    raise ValueError("Imagen no encontrada.")
+                self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
+                self.segmented_image = self.original_image.copy()
+                self.current_image = self.segmented_image.copy()
+                self.painted_image = self.segmented_image.copy()
+                self.displayed_image = self.painted_image.copy()
+                self.imagen_segmentada()
+                print(f"Tiempo de carga de la imagen: {time.perf_counter() - start_time:.6f} segundos.")
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+                print(f"Error al cargar la imagen: {file_path} - {e}")
 
     def guardar_png(self, file_path):
         #se copia la imagen actual para no dañar la imagen original en caso de error
@@ -239,35 +245,104 @@ class creacion_de_mapas:
     def clear_current_canvas(self):
         self.canvas.delete("all")
 
+ 
     def kmeans(self):
         start_time = time.perf_counter()
         self.save_to_historia()
+        
+        # Crear el cuadro de diálogo para seleccionar el método de segmentación
+        method_window = tk.Toplevel(self.master)
+        method_window.title("Seleccione el método de segmentación")
+        
+        method_var = StringVar(value="euclidiana")
+        
+        Label(method_window, text="Seleccione el método de segmentación:").pack(pady=10)
+        Radiobutton(method_window, text="Euclidiana", variable=method_var, value="euclidiana").pack(anchor="w")
+        Radiobutton(method_window, text="Manhattan", variable=method_var, value="manhattan").pack(anchor="w")
+        Radiobutton(method_window, text="Chebyshev", variable=method_var, value="chebyshev").pack(anchor="w")
+        
+        def on_ok():
+            method_window.destroy()
+        Button(method_window, text="OK", command=on_ok).pack(pady=10)
+            # Obtener el tamaño de la ventana principal
+        master_width = self.master.winfo_width()
+        master_height = self.master.winfo_height()
+        master_x = self.master.winfo_x()
+        master_y = self.master.winfo_y()
+        
+        # Obtener el tamaño de la ventana secundaria
+        method_window.update_idletasks()  # Asegurarse de que la ventana se ha renderizado para obtener el tamaño
+        window_width = method_window.winfo_width()
+        window_height = method_window.winfo_height()
+        
+        # Calcular la posición x e y para centrar la ventana secundaria
+        position_x = master_x + (master_width // 2) - (window_width // 2)
+        position_y = master_y + (master_height // 2) - (window_height // 2)
+        
+        # Establecer la posición de la ventana secundaria
+        method_window.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")
+        
+        method_window.transient(self.master)
+        method_window.grab_set()
+        self.master.wait_window(method_window)
+            
+        method = method_var.get()
+        
         # Crear una máscara para los polígonos existentes
         mask = np.zeros(self.original_image.shape[:2], dtype=np.uint8)
         for polygon in self.existing_polygons:
             points = np.array(polygon.exterior.coords, dtype=np.int32)
             cv2.fillPoly(mask, [points], 1)
+        
         # Obtener clusters (colores) según la entrada del usuario
         k = int(self.k_entry.get())
-        kmeans = KMeans(n_clusters=k, random_state=0)
-        # Aplicar K-means solo a las áreas no cubiertas por los polígonos
         data = self.original_image[mask == 0].reshape((-1, 3)).astype(np.float32)
-        kmeans.fit(data)
+        
+        if method == "euclidiana":
+            kmeans = KMeans(n_clusters=k, random_state=0)
+            kmeans.fit(data)
+            labels = kmeans.predict(data)
+            centroids = kmeans.cluster_centers_
+        
+        elif method == "manhattan":
+            centroids = data[np.random.choice(data.shape[0], k, replace=False)]
+            for _ in range(100):  # Número de iteraciones del algoritmo K-means
+                distances = np.abs(data[:, np.newaxis] - centroids).sum(axis=2)
+                labels = np.argmin(distances, axis=1)
+                new_centroids = np.array([data[labels == i].mean(axis=0) for i in range(k)])
+                if np.all(centroids == new_centroids):
+                    break
+                centroids = new_centroids
+        
+        elif method == "chebyshev":
+            centroids = data[np.random.choice(data.shape[0], k, replace=False)]
+            for _ in range(100):  # Número de iteraciones del algoritmo K-means
+                distances = np.max(np.abs(data[:, np.newaxis] - centroids), axis=2)
+                labels = np.argmin(distances, axis=1)
+                new_centroids = np.array([data[labels == i].mean(axis=0) for i in range(k)])
+                if np.all(centroids == new_centroids):
+                    break
+                centroids = new_centroids
+
         # Crear la imagen segmentada
         self.segmented_image = self.original_image.copy()
-        self.segmented_image[mask == 0] = kmeans.cluster_centers_[kmeans.predict(data)].reshape(-1, 3).astype(np.uint8)
+        self.segmented_image[mask == 0] = centroids[labels].astype(np.uint8)
+        
         # Combinar la imagen segmentada con los polígonos existentes
         self.current_image = self.segmented_image.copy()
         self.painted_image = self.segmented_image.copy()
         self.displayed_image = self.painted_image.copy()
+        
         # Volver a dibujar los polígonos existentes
         for polygon in self.existing_polygons:
             points = np.array(polygon.exterior.coords, dtype=np.int32)
             color = self.painted_image[points[0][1], points[0][0]].tolist()  # Convertir a lista
             cv2.fillPoly(self.painted_image, [points], color)
             cv2.fillPoly(self.displayed_image, [points], color)
+        
         self.imagen_segmentada()
-        print(f"Tiempo de ejecución de K-means: {time.perf_counter() - start_time:.6f} segundos.")
+        print(f"Tiempo de ejecución de K-means ({method}): {time.perf_counter() - start_time:.6f} segundos.")
+
 
     def imagen_segmentada(self):
         #redimensiona imagen para poder trabajarla
@@ -286,7 +361,7 @@ class creacion_de_mapas:
                 box_y = screen_y - box_height // 2
                 draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
                 draw.text((box_x, box_y), label, fill='white', font=self.font)
-                #se reconvierte la imagen nueva PIL a un photoImage para poder visualisar en Tkinter
+                #se reconvierte la imagen nueva PIL a un photoImage para poder visualizar en Tkinter
         self.photo_image = ImageTk.PhotoImage(image=img)
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
@@ -295,21 +370,6 @@ class creacion_de_mapas:
         poly = Polygon(points)
         point = poly.representative_point()
         return point.x, point.y
-
-
-    #activar en caso de querer revisión de superposición de polígonos
-    # def superposicion_poligono(self, new_polygon_points):
-    #     new_polygon = Polygon(new_polygon_points)
-    #     new_polygon = make_valid(new_polygon)  
-    #     overlap_threshold = 0.6  # 20% de superposición
-
-    #     for poly in self.existing_polygons:
-    #         poly = make_valid(poly)  
-    #         intersection = new_polygon.intersection(poly)
-    #         if intersection.area / new_polygon.area > overlap_threshold:
-    #             return True
-
-    #     return False
 
     def handle_click(self, event):
         mode = self.mode_var.get()
