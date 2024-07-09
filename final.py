@@ -327,6 +327,7 @@ class creacion_de_mapas:
             points = np.array(polygon.exterior.coords, dtype=np.int32)
             color = self.painted_image[points[0][1], points[0][0]].tolist()  # Convertir a lista
             cv2.fillPoly(self.painted_image, [points], color)
+            cv2.fillPoly(self.displayed_image, [points], color)       
         self.imagen_segmentada()
         print(f"Tiempo de ejecución de K-means ({method}): {time.perf_counter() - start_time:.6f} segundos.")
 
