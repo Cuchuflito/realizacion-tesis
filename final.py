@@ -4,13 +4,10 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 import cv2
 import numpy as np
 from sklearn.cluster import KMeans
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon
 import pickle
 from shapely.validation import make_valid
 import time
-import os
-from tkinter.simpledialog import Dialog
-
 
 start_time = time.perf_counter()
 
@@ -69,7 +66,7 @@ class creacion_de_mapas:
                 print(f"Tiempo de carga de la imagen: {time.perf_counter() - start_time:.6f} segundos.")
             except Exception as e:
                 messagebox.showerror("Error", str(e))
-                print(f"Error al cargar la imagen: {file_path} - {e}")
+                print(f"Error al cargar la imagen: {file_path} - {e}")     
 
     def guardar_png(self, file_path):
         #se copia la imagen actual para no dañar la imagen original en caso de error
@@ -86,13 +83,13 @@ class creacion_de_mapas:
         resized_imagen.save(file_path, "PNG")
 
     def guardar_asc(self, file_path):
-        #se obtienen dimensiones de la imagen y se forma un arrays de ceros para comenzar a guardar los valores ASC
         rows, cols, _ = self.painted_image.shape
         asc_array = np.zeros((rows, cols), dtype=int)
-        #se buscan coincidencias donde la imagen manipulada es igual a la original. Si es así se asigna valor o, si no, se asigna valor según el mapa de color
+        
+        # Identificar celdas originales (no pintadas)
         original_mask = np.all(self.painted_image == self.original_image, axis=-1)
-        asc_array[original_mask] = 0
-
+        asc_array[original_mask] = 0  # Cambiamos a 0 en lugar de -9999
+        
         color_bgr_map = {
             "blue": [17, 131, 168],
             "orange": [238, 191, 17],
@@ -100,13 +97,14 @@ class creacion_de_mapas:
             "purple": [149, 29, 205],
             "brown": [109, 93, 33]
         }
+        
+        # Asignar valores a las celdas pintadas
         value = 1
-        #se asigna valor numérico a cada color detectado en la imagen, incrementado el valor para el color que se lea después
         for color_name, color_bgr in color_bgr_map.items():
             mask = np.all(self.painted_image == color_bgr, axis=-1)
             asc_array[mask] = value
             value += 1
-
+        
         header = f"ncols {cols}\nnrows {rows}\nxllcorner 0.0\nyllcorner 0.0\ncellsize 1.0\nNODATA_value -9999\n"
         np.savetxt(file_path, asc_array, fmt='%d', header=header, comments='')
 
@@ -250,42 +248,33 @@ class creacion_de_mapas:
         start_time = time.perf_counter()
         self.save_to_historia()
         
-        # Crear el cuadro de diálogo para seleccionar el método de segmentación
+        # Se crea el cuadro de diálogo para elgegir la forma del cálculo de distancias.
         method_window = tk.Toplevel(self.master)
         method_window.title("Seleccione el método de segmentación")
         
         method_var = StringVar(value="euclidiana")
         
         Label(method_window, text="Seleccione el método de segmentación:").pack(pady=10)
-        Radiobutton(method_window, text="Euclidiana", variable=method_var, value="euclidiana").pack(anchor="w")
-        Radiobutton(method_window, text="Manhattan", variable=method_var, value="manhattan").pack(anchor="w")
-        Radiobutton(method_window, text="Chebyshev", variable=method_var, value="chebyshev").pack(anchor="w")
+        Radiobutton(method_window, text="Según distancia Euclidiana", variable=method_var, value="euclidiana").pack(anchor="w")
+        Radiobutton(method_window, text="Según distancia Manhattan", variable=method_var, value="manhattan").pack(anchor="w")
+        Radiobutton(method_window, text="Según distancia Chebyshev", variable=method_var, value="chebyshev").pack(anchor="w")
         
         def on_ok():
             method_window.destroy()
         Button(method_window, text="OK", command=on_ok).pack(pady=10)
-            # Obtener el tamaño de la ventana principal
         master_width = self.master.winfo_width()
         master_height = self.master.winfo_height()
         master_x = self.master.winfo_x()
         master_y = self.master.winfo_y()
-        
-        # Obtener el tamaño de la ventana secundaria
-        method_window.update_idletasks()  # Asegurarse de que la ventana se ha renderizado para obtener el tamaño
+        method_window.update_idletasks() 
         window_width = method_window.winfo_width()
         window_height = method_window.winfo_height()
-        
-        # Calcular la posición x e y para centrar la ventana secundaria
         position_x = master_x + (master_width // 2) - (window_width // 2)
         position_y = master_y + (master_height // 2) - (window_height // 2)
-        
-        # Establecer la posición de la ventana secundaria
-        method_window.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")
-        
+        method_window.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")  
         method_window.transient(self.master)
         method_window.grab_set()
-        self.master.wait_window(method_window)
-            
+        self.master.wait_window(method_window)            
         method = method_var.get()
         
         # Crear una máscara para los polígonos existentes
@@ -306,7 +295,7 @@ class creacion_de_mapas:
         
         elif method == "manhattan":
             centroids = data[np.random.choice(data.shape[0], k, replace=False)]
-            for _ in range(100):  # Número de iteraciones del algoritmo K-means
+            for _ in range(100):  
                 distances = np.abs(data[:, np.newaxis] - centroids).sum(axis=2)
                 labels = np.argmin(distances, axis=1)
                 new_centroids = np.array([data[labels == i].mean(axis=0) for i in range(k)])
@@ -316,7 +305,7 @@ class creacion_de_mapas:
         
         elif method == "chebyshev":
             centroids = data[np.random.choice(data.shape[0], k, replace=False)]
-            for _ in range(100):  # Número de iteraciones del algoritmo K-means
+            for _ in range(100):  
                 distances = np.max(np.abs(data[:, np.newaxis] - centroids), axis=2)
                 labels = np.argmin(distances, axis=1)
                 new_centroids = np.array([data[labels == i].mean(axis=0) for i in range(k)])
@@ -338,11 +327,8 @@ class creacion_de_mapas:
             points = np.array(polygon.exterior.coords, dtype=np.int32)
             color = self.painted_image[points[0][1], points[0][0]].tolist()  # Convertir a lista
             cv2.fillPoly(self.painted_image, [points], color)
-            cv2.fillPoly(self.displayed_image, [points], color)
-        
         self.imagen_segmentada()
         print(f"Tiempo de ejecución de K-means ({method}): {time.perf_counter() - start_time:.6f} segundos.")
-
 
     def imagen_segmentada(self):
         #redimensiona imagen para poder trabajarla
