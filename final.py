@@ -8,6 +8,7 @@ from shapely.geometry import Polygon
 import pickle
 from shapely.validation import make_valid
 import time
+from scipy import interpolate
 
 start_time = time.perf_counter()
 
@@ -83,27 +84,37 @@ class creacion_de_mapas:
         resized_imagen.save(file_path, "PNG")
 
     def guardar_asc(self, file_path):
-        rows, cols, _ = self.painted_image.shape
+        # Get the dimensions of the image
+        rows, cols = self.painted_image.shape[:2]
         asc_array = np.zeros((rows, cols), dtype=int)
         
-        # Identificar celdas originales (no pintadas)
-        original_mask = np.all(self.painted_image == self.original_image, axis=-1)
-        asc_array[original_mask] = 0  # Cambiamos a 0 en lugar de -9999
-        
+        # Definir el mapa de colores en el orden correcto
         color_bgr_map = {
-            "blue": [17, 131, 168],
-            "orange": [238, 191, 17],
-            "green": [107, 229, 68],
-            "purple": [149, 29, 205],
-            "brown": [109, 93, 33]
+            "blue": [17, 131, 168],     # Mar (1)
+            "orange": [238, 191, 17],   # Urbano (2)
+            "green": [107, 229, 68],    # Forestal (3)
+            "purple": [149, 29, 205],   # Edificio Histórico (4)
+            "brown": [109, 93, 33]      # Tierra (5)
         }
         
         # Asignar valores a las celdas pintadas
-        value = 1
-        for color_name, color_bgr in color_bgr_map.items():
+        for value, (color_name, color_bgr) in enumerate(color_bgr_map.items(), start=1):
             mask = np.all(self.painted_image == color_bgr, axis=-1)
             asc_array[mask] = value
-            value += 1
+        
+        # Crear una máscara de valores no cero
+        mask = asc_array != 0
+        
+        # Obtener las coordenadas de los valores no cero
+        y, x = np.where(mask)
+        
+        # Crear un interpolador con los valores no cero
+        values = asc_array[mask]
+        interp = interpolate.NearestNDInterpolator(list(zip(x, y)), values)
+        
+        # Aplicar la interpolación a toda la matriz
+        xx, yy = np.meshgrid(np.arange(cols), np.arange(rows))
+        asc_array = interp(xx, yy).astype(int)
         
         header = f"ncols {cols}\nnrows {rows}\nxllcorner 0.0\nyllcorner 0.0\ncellsize 1.0\nNODATA_value -9999\n"
         np.savetxt(file_path, asc_array, fmt='%d', header=header, comments='')
