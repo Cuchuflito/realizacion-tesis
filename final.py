@@ -46,7 +46,7 @@ class creacion_de_mapas:
         self.offset_y = 0
         self.mode_var = StringVar(value="lazo")
         self.color_var = StringVar(value="orange")
-        self.color_map = {"orange": 1, "blue": 2, "green": 3, "purple": 4}
+        self.color_map = {"orange": 1, "blue": 2, "green": 3, "purple": 4, "brown": 5}
         self.existing_polygons = []
         self.font = ImageFont.load_default()
 
@@ -108,6 +108,9 @@ class creacion_de_mapas:
         # Obtener las coordenadas de los valores no cero
         y, x = np.where(mask)
         
+        if len(x) == 0 or len(y) == 0:
+            raise ValueError("No hay suficientes datos no nulos para crear el interpolador.")
+        
         # Crear un interpolador con los valores no cero
         values = asc_array[mask]
         interp = interpolate.NearestNDInterpolator(list(zip(x, y)), values)
@@ -115,6 +118,21 @@ class creacion_de_mapas:
         # Aplicar la interpolación a toda la matriz
         xx, yy = np.meshgrid(np.arange(cols), np.arange(rows))
         asc_array = interp(xx, yy).astype(int)
+        
+        # Aplicar una corrección de bordes para evitar errores de píxeles
+        for i in range(rows):
+            for j in range(cols):
+                if asc_array[i, j] == 0:
+                    distances = []
+                    values = []
+                    for di in [-1, 0, 1]:
+                        for dj in [-1, 0, 1]:
+                            ni, nj = i + di, j + dj
+                            if 0 <= ni < rows and 0 <= nj < cols and asc_array[ni, nj] != 0:
+                                distances.append(np.sqrt(di**2 + dj**2))
+                                values.append(asc_array[ni, nj])
+                    if values:
+                        asc_array[i, j] = values[np.argmin(distances)]
         
         header = f"ncols {cols}\nnrows {rows}\nxllcorner 0.0\nyllcorner 0.0\ncellsize 1.0\nNODATA_value -9999\n"
         np.savetxt(file_path, asc_array, fmt='%d', header=header, comments='')
@@ -164,14 +182,11 @@ class creacion_de_mapas:
                 self.imagen_segmentada()
         except FileNotFoundError:
             print("No se encontró el archivo de estado.")
-
     def abrir(self):
         file_path = filedialog.askopenfilename(defaultextension=".state", filetypes=[("State Files", "*.state")])
         if file_path:
             self.cargar_estado(file_path)
-
     def guardar_como(self):
-        #esta función, así como las dos de abajo, se encargan sólo de abrir el menú para preguntarle al usuario el directorio de destino. Luego llaman a las funciones que aplican la lógica del guardado
         file_path = filedialog.asksaveasfilename(defaultextension=".state", filetypes=[("State Files", "*.state")])
         if file_path:
             self.guardar_estado(file_path)
@@ -187,11 +202,11 @@ class creacion_de_mapas:
             self.guardar_asc(file_path)
 
     def ui(self):
-        #marco superior
+        # Marco superior
         self.top_frame = Frame(self.master)
         self.top_frame.pack(side="top", fill="x", expand=True)
 
-        #barra menú
+        # Barra menú
         self.menu_bar = tk.Menu(self.master)
         self.master.config(menu=self.menu_bar)
         file_menu = tk.Menu(self.menu_bar)
@@ -201,7 +216,7 @@ class creacion_de_mapas:
         file_menu.add_command(label="Exportar como PNG", command=self.exportar_png)
         file_menu.add_command(label="Exportar como ASC", command=self.exportar_asc)
 
-        #operaciones y herramientas en orden: cargar imagen, segmentar, zoom in, zoom out
+        # Operaciones y herramientas en orden: cargar imagen, segmentar, zoom in, zoom out
         self.load_image_button = Button(self.top_frame, text="Cargar Imagen", command=self.cargar_imagen)
         self.load_image_button.pack(side="left")
         self.k_entry = Entry(self.top_frame, width=5)
@@ -214,7 +229,7 @@ class creacion_de_mapas:
         self.zoom_out_button = Button(self.top_frame, text="Zoom Out", command=self.zoom_out)
         self.zoom_out_button.pack(side="left")
 
-        #botones de radio para cambiar de modo y color
+        # Botones de radio para cambiar de modo y color
         self.color_options = Frame(self.master, width=200)
         self.color_options.pack(side="right", fill="y")
         colors = {"Azul (Mar)": "blue", "Naranja (Urbano)": "orange", "Verde (Forestal)": "green", "Morado (Edificio Historico)": "purple", "Café (Tierra)":"brown"}
@@ -228,11 +243,11 @@ class creacion_de_mapas:
         Radiobutton(self.mode_frame, text="Lazo", variable=self.mode_var, value="lazo").pack(side="left")
         Radiobutton(self.mode_frame, text="Arrastrar", variable=self.mode_var, value="drag").pack(side="left")
 
-        #botón para finalizar polígono
+        # Botón para finalizar polígono
         self.finish_polygon_button = Button(self.top_frame, text="Finalizar Polígono", command=self.terminar_etiquetado)
         self.finish_polygon_button.pack(side="left")
 
-        #configuración del canvas
+        # Configuración del canvas
         self.image_frame = Frame(self.master)
         self.image_frame.pack(side="left", fill="both", expand=True)
         self.canvas = Canvas(self.image_frame, width=1040, height=720, cursor="cross")
@@ -254,22 +269,21 @@ class creacion_de_mapas:
     def clear_current_canvas(self):
         self.canvas.delete("all")
 
- 
     def kmeans(self):
         start_time = time.perf_counter()
         self.save_to_historia()
         
-        # Se crea el cuadro de diálogo para elgegir la forma del cálculo de distancias.
+        # Se crea el cuadro de diálogo para elegir la forma del cálculo de distancias.
         method_window = tk.Toplevel(self.master)
         method_window.title("Seleccione el método de segmentación")
         
         method_var = StringVar(value="euclidiana")
-        
+        # se crea el mensaje para preguntarle al usuario como quiere segmentar
         Label(method_window, text="Seleccione el método de segmentación:").pack(pady=10)
         Radiobutton(method_window, text="Según distancia Euclidiana", variable=method_var, value="euclidiana").pack(anchor="w")
         Radiobutton(method_window, text="Según distancia Manhattan", variable=method_var, value="manhattan").pack(anchor="w")
         Radiobutton(method_window, text="Según distancia Chebyshev", variable=method_var, value="chebyshev").pack(anchor="w")
-        
+        # se crea metodo para ubicar ventana selección metodo de segmentacion, y dejarla al centro de la herramienta
         def on_ok():
             method_window.destroy()
         Button(method_window, text="OK", command=on_ok).pack(pady=10)
@@ -297,7 +311,7 @@ class creacion_de_mapas:
         # Obtener clusters (colores) según la entrada del usuario
         k = int(self.k_entry.get())
         data = self.original_image[mask == 0].reshape((-1, 3)).astype(np.float32)
-        
+        #segmentar según cualquiera de las 3 opciones que escoja el usuario
         if method == "euclidiana":
             kmeans = KMeans(n_clusters=k, random_state=0)
             kmeans.fit(data)
@@ -343,13 +357,13 @@ class creacion_de_mapas:
         print(f"Tiempo de ejecución de K-means ({method}): {time.perf_counter() - start_time:.6f} segundos.")
 
     def imagen_segmentada(self):
-        #redimensiona imagen para poder trabajarla
+        # Redimensiona la imagen para poder trabajarla
         resized_image = cv2.resize(self.displayed_image, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_LINEAR)
-        #se convierte la imagen a objeti PIL para poder dibujar sobre ella
+        # Se convierte la imagen a objeto PIL para poder dibujar sobre ella
         img = Image.fromarray(resized_image)
         draw = ImageDraw.Draw(img)
         draw.font = self.font
-        #comienza el dibujado de etiquetas
+        # Comienza el dibujado de etiquetas
         for label, (center_x, center_y) in self.labels:
             if label:  
                 screen_x = int(center_x * self.scale)
@@ -359,7 +373,7 @@ class creacion_de_mapas:
                 box_y = screen_y - box_height // 2
                 draw.rectangle([box_x - 2, box_y - 2, box_x + box_width + 2, box_y + box_height + 2], fill='black')
                 draw.text((box_x, box_y), label, fill='white', font=self.font)
-                #se reconvierte la imagen nueva PIL a un photoImage para poder visualizar en Tkinter
+                # Se reconvierte la imagen nueva PIL a un PhotoImage para poder visualizar en Tkinter
         self.photo_image = ImageTk.PhotoImage(image=img)
         self.canvas.config(width=self.canvas_width * self.scale, height=self.canvas_height * self.scale)
         self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo_image, anchor=NW)
@@ -371,12 +385,12 @@ class creacion_de_mapas:
 
     def handle_click(self, event):
         mode = self.mode_var.get()
-        #variacion entre lazo y arrastrar
+        # Variación entre lazo y arrastrar
         if mode == "lazo":
             if not self.is_drawing_polygon:
                 self.polygon_points = []
                 self.original_polygon_points = []
-                #si la imagen está arrastrada o posee zoom, hacer los cálculos para que el polígono se dibuje en la imagen original cargada
+                # Si la imagen está arrastrada o posee zoom, hacer los cálculos para que el polígono se dibuje en la imagen original cargada
                 scaled_x = (event.x - self.offset_x) / self.scale
                 scaled_y = (event.y - self.offset_y) / self.scale
                 self.polygon_points.append((event.x, event.y))
@@ -391,7 +405,7 @@ class creacion_de_mapas:
                 self.polygon_points.append((event.x, event.y))
                 self.original_polygon_points.append((scaled_x, scaled_y))
                 self.canvas.coords(self.current_polygon, *[coord for point in self.polygon_points for coord in point])
-        #si es arrastrar        
+        # Si es arrastrar        
         elif mode == "drag":
             self.is_drawing_polygon = False
             self.start_drag(event)
@@ -402,30 +416,30 @@ class creacion_de_mapas:
 
     def drag(self, event):
         if self.mode_var.get() == "drag" and hasattr(self, 'drag_start_x') and self.drag_start_x is not None:
-            #cálculo de desplazamiento: restar posiciones de arrastre a posición inicial de imagen
+            # Cálculo de desplazamiento: restar posiciones de arrastre a posición inicial de imagen
             dx = event.x - self.drag_start_x
             dy = event.y - self.drag_start_y
-            #offset para ajustar posición imagen
+            # Offset para ajustar posición imagen
             self.offset_x += dx
             self.offset_y += dy
-            #se actualizan coordenadas de arrastre
+            # Se actualizan coordenadas de arrastre
             self.drag_start_x = event.x
             self.drag_start_y = event.y
-        #redibujo de imagen movida en el canvas
+            # Redibujo de imagen movida en el canvas
             self.imagen_segmentada()
 
     def reset_drag(self, event):
         if self.mode_var.get() == "drag":
             self.drag_start_x = None
             self.drag_start_y = None
-    #reiniciar posición de arrastre (para volver a arrastrar sin problemas de superposción de coordenadas en el canvas)
+    # Reiniciar posición de arrastre (para volver a arrastrar sin problemas de superposición de coordenadas en el canvas)
 
     def zoom_in(self):
         if self.scale < 5:
-            #si la escala de zoom es menor a 5, se agranda y redibuja la imagen según el zoom
+            # Si la escala de zoom es menor a 5, se agranda y redibuja la imagen según el zoom
             self.scale *= 1.1
             self.imagen_segmentada()
-            #si se hace zoom, se reinicia todo dibujo de polígonos en curso, para limpiar el zoom
+            # Si se hace zoom, se reinicia todo dibujo de polígonos en curso, para limpiar el zoom
             self.is_drawing_polygon = False
             self.polygon_points = []
 
@@ -438,27 +452,27 @@ class creacion_de_mapas:
 
     def terminar_etiquetado(self):
         self.save_to_historia()
-        #verificación inicial si hay polígonos en curso o puntos de polígono definidos
+        # Verificación inicial si hay polígonos en curso o puntos de polígono definidos
         if self.is_drawing_polygon and self.original_polygon_points:
             label = simpledialog.askstring("Etiqueta", "Introduce el nombre del sector:", initialvalue="")
             if label is None:
                 label = ""
-            #mapa de colores RGB seleccionables para polígonos (el sistema lo obtiene según el radiobutton que de el usuario.
+            # Mapa de colores RGB seleccionables para polígonos (el sistema lo obtiene según el radiobutton que de el usuario).
             color_map = {"orange": (238, 191, 17), "blue": (17, 131, 168), "green": (107, 229, 68), "purple": (149, 29, 205), "brown": (109, 93, 33)}
             chosen_color = color_map[self.color_var.get()]
-            #se crea una máscara binaria, se convierten los puntos del polígono a un formato adecuado para poder pintar, y se rellena el polígono
+            # Se crea una máscara binaria, se convierten los puntos del polígono a un formato adecuado para poder pintar, y se rellena el polígono
             mask = np.zeros((self.painted_image.shape[0], self.painted_image.shape[1]), dtype=np.uint8)
             points = np.array(self.original_polygon_points, dtype=np.int32)
             cv2.fillPoly(mask, [points], 1)
-            #se aplican los colores en los estados actuales
+            # Se aplican los colores en los estados actuales
             self.painted_image[mask == 1] = chosen_color
             self.displayed_image[mask == 1] = chosen_color
-            #si se etiqueta el polígono, se calcula su centroide para ubicar la etiqueta misma. Etiqueta se añade a lista de etiquetas
+            # Si se etiqueta el polígono, se calcula su centroide para ubicar la etiqueta misma. Etiqueta se añade a lista de etiquetas
             if label:
                 centroid_x, centroid_y = self.centroide_poligono_lazo(self.original_polygon_points)
                 self.labels.append((label, (centroid_x, centroid_y)))
             self.existing_polygons.append(Polygon(self.original_polygon_points))
-            #se actualiza el canvas
+            # Se actualiza el canvas
             self.imagen_segmentada()
             self.is_drawing_polygon = False
             self.polygon_points = []
@@ -468,7 +482,6 @@ class creacion_de_mapas:
                 self.current_polygon = None
         else:
             print("Nada más")
-
 
 root = tk.Tk()
 app = creacion_de_mapas(root)
